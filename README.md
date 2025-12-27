@@ -1,430 +1,538 @@
 # Toroidal Equilibrium Propagation for Transformers (TorEqProp)
 
 > **Status**: 🔬 Theoretical Proposal / Research Specification  
-> **Version**: 0.1.0  
-> **License**: MIT  
+> **Version**: 0.2.0  
+> **Target**: ICML/NeurIPS 2025 submission  
 
 ---
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Key Innovations](#key-innovations)
-- [Architecture: Looped/Toroidal Transformer](#architecture-loopedtoroidal-transformer)
-- [Training: Equilibrium Propagation on the Torus](#training-equilibrium-propagation-on-the-torus)
-- [Energy Formulation](#energy-formulation)
-- [Advantages](#advantages)
-- [Comparison with Existing Approaches](#comparison-with-existing-approaches)
-- [Implementation Guidelines](#implementation-guidelines)
-- [Pseudocode](#pseudocode)
-- [Potential Challenges & Mitigations](#potential-challenges--mitigations)
-- [Open Research Questions](#open-research-questions)
-- [Limitations](#limitations)
-- [Roadmap](#roadmap)
+- [Executive Summary](#executive-summary)
+- [Core Hypothesis](#core-hypothesis)
+- [Architecture](#architecture)
+- [Training Algorithm](#training-algorithm)
+- [Experimental Plan](#experimental-plan)
+- [Success Criteria](#success-criteria)
+- [Implementation Specification](#implementation-specification)
+- [Risk Analysis](#risk-analysis)
+- [Timeline](#timeline)
+- [Resources Required](#resources-required)
 - [Related Work](#related-work)
-- [Citation](#citation)
+- [Appendix: Mathematical Details](#appendix-mathematical-details)
 
 ---
 
-## Overview
+## Executive Summary
 
-**Toroidal Equilibrium Propagation (TorEqProp)** is a novel training paradigm that combines **looped (or toroidal/recurrent-depth) transformers** with **Equilibrium Propagation (EqProp)** to achieve fully symmetric, biologically plausible credit assignment.
+**TorEqProp** proposes training transformers via Equilibrium Propagation on weight-tied (toroidal) architectures, eliminating backpropagation's asymmetric backward pass. This yields:
 
-By "looping the transformer into a torus" — recursively feeding outputs back as inputs with weight-tying — the feedforward transformer becomes a convergent recurrent network capable of relaxing to fixed-point equilibria. EqProp then trains this looped architecture using only forward-phase relaxations (free and nudged equilibria), eliminating the asymmetric backward pass of backpropagation (BP).
+| Claim | Validation Method |
+|-------|-------------------|
+| O(1) memory training | Profile vs. BP on same model |
+| Biological plausibility | Local Hebbian updates only |
+| Equivalent gradients to BP | Analytical proof + empirical β→0 limit |
+| Competitive accuracy | Match BP baseline within 2% on benchmarks |
 
-This approach directly addresses a fundamental intuition: **equalizing forward (inference) and backward (learning) signal metrics through identical recurrent dynamics**. Both phases use the same looped forward computations, ensuring balanced propagation of activations and gradients.
-
-> [!IMPORTANT]
-> This document is a **theoretical research specification**, not an implemented system. It provides a complete blueprint for researching and implementing TorEqProp as a genuine post-BP paradigm.
-
----
-
-## Key Innovations
-
-The novelty of TorEqProp lies in the **direct application of EqProp's contrastive Hebbian mechanism to toroidal transformers**, yielding:
-
-1. **Scalable, local, hardware-friendly alternative** to BP for transformer-scale models
-2. **Distinct from existing approaches**:
-   - Unlike energy-based transformers → no implicit differentiation required
-   - Unlike DEQs → no root-finding with BP-like gradients
-3. **Symmetric dynamics** — identical compute paths for inference and learning
+**Minimum Publishable Result**: Demonstrate TorEqProp trains a looped transformer to ≥95% MNIST accuracy with verified gradient equivalence.
 
 ---
 
-## Architecture: Looped/Toroidal Transformer
+## Core Hypothesis
 
-### Base Structure
+> **H1**: A weight-tied transformer iterated to fixed-point equilibrium can be trained via contrastive Hebbian learning (EqProp) with gradients equivalent to implicit differentiation through the equilibrium.
 
-Start with a standard transformer block $f_\theta(h; x)$, where:
-- $h$ — hidden state
-- $x$ — input sequence (with positional encodings if needed)
+**Testable Predictions**:
 
-### Toroidal Looping
-
-Recursively apply the same block with weight-tying:
-
-$$h_{t+1} = h_t + f_\theta(h_t; x) \quad \text{(residual form for stability)}$$
-
-or simply:
-
-$$h_{t+1} = f_\theta(h_t; x)$$
-
-This creates a **weight-tied recurrent network with toroidal topology** (closed loop, no start/end).
-
-### Inference (Free Phase)
-
-Iterate until convergence to equilibrium $h^*$ where:
-
-$$h^* \approx f_\theta(h^*; x) \quad \text{or residual form:} \quad 0 \approx f_\theta(h^*; x)$$
-
-**Convergence methods**:
-- Fixed-point iteration with damping
-- Broyden's method (fast, low-memory)
-- Anderson acceleration
-
-**Adaptive compute**: More iterations for complex inputs → System 2-like "thinking"
-
-The equilibrium $h^*$ represents the final processed representation/prediction.
-
-> [!NOTE]
-> This is inspired by looped transformers (e.g., Universal Transformers, recent 2024–2025 works on expressive power and reasoning) but optimized for **convergence** rather than finite unrolling.
+1. $\lim_{\beta \to 0} \frac{\Delta \theta_{\text{EqProp}}}{\beta} = \nabla_\theta \mathcal{L}$ (BP gradient)
+2. Convergence to equilibrium occurs in $O(\log(1/\epsilon))$ iterations for well-conditioned systems
+3. Training curves (loss, accuracy) match BP baselines within statistical noise
 
 ---
 
-## Training: Equilibrium Propagation on the Torus
+## Architecture
 
-EqProp trains energy-based models via two symmetric relaxation phases:
-
-### Phase 1: Free Phase
-Relax to equilibrium $h^*$ with input $x$ clamped (no target nudge). This minimizes an implicit energy $E(h; \theta)$.
-
-### Phase 2: Nudged Phase
-Slightly perturb output neurons toward the target $y$ with small factor $\beta > 0$:
-
-$$\text{Add } \beta(y - h_L) \text{ to final layer dynamics}$$
-
-where $h_L$ is the output projection. Relax to nearby equilibrium $h^\beta$.
-
-### Phase 3: Weight Update
-Apply the **contrastive Hebbian rule**:
-
-$$\Delta \theta \propto \left( h^\beta (h^\beta)^T - h^* (h^*)^T \right)$$
-
-(or per-synapse co-activations — local and Hebbian)
-
-### Key Properties
-
-| Property | Description |
-|----------|-------------|
-| **BP Equivalence** | In the limit $\beta \to 0$, exactly matches BP gradients for the fixed-point system |
-| **Symmetric Dynamics** | Both phases use identical toroidal dynamics — fully equalized forward/backward signals |
-| **No Backward Pass** | Eliminates weight transport problem; highly local updates |
-
----
-
-## Energy Formulation
-
-> [!TIP]
-> Optional but recommended for theoretical grounding
-
-Frame the looped transformer as minimizing an energy:
-
-$$E(h; \theta, x) = -\frac{1}{2} h^T W h + \phi(h) + \psi(h, x)$$
-
-where:
-- $W$ — learned weight matrix
-- $\phi(h)$ — non-linear potential (e.g., from activation functions)
-- $\psi(h, x)$ — input coupling term
-
-**Dynamics**:
-
-$$\dot{h} = -\frac{\partial E}{\partial h}$$
-
-This leads to Hopfield-like convergence guarantees under appropriate conditions.
-
-> [!WARNING]
-> The simplified energy $E = -\frac{1}{2} h^T W h$ is illustrative. A rigorous energy formulation for the full transformer block (including attention) remains an open research question. See [Open Research Questions](#open-research-questions).
-
----
-
-## Advantages
-
-| Advantage | Description |
-|-----------|-------------|
-| **Biological Plausibility** | Symmetric dynamics, local Hebbian updates, no asymmetric BP |
-| **Memory Efficiency** | O(1) memory (no computational graph unrolling) |
-| **Adaptive Compute** | Variable iterations at inference time based on input complexity |
-| **Scalability** | Leverages transformer's expressiveness; potential for better reasoning via deeper equilibria |
-| **Hardware-Friendly** | Suitable for neuromorphic chips (symmetric recurrent relaxations) |
-| **Uncertainty Estimation** | Equilibria enable natural uncertainty quantification and iterative refinement |
-
----
-
-## Comparison with Existing Approaches
-
-| Approach | Gradient Method | Memory | Biological Plausibility | Attention Native |
-|----------|-----------------|--------|-------------------------|------------------|
-| **Standard BP** | Backprop | O(L) | ❌ Low | ✅ Yes |
-| **DEQ** | Implicit diff + BP | O(1) | ❌ Low | ✅ Yes |
-| **Hopfield Transformers** | BP on energy | O(L) | ⚠️ Partial | ⚠️ Modified |
-| **Predictive Coding** | Local updates | O(1) | ✅ High | ❌ No |
-| **TorEqProp (proposed)** | Contrastive Hebbian | O(1) | ✅ High | ⚠️ TBD |
-
----
-
-## Implementation Guidelines
-
-### 1. Base Block
-
-Use a standard transformer layer with modifications for convergence:
+### Looped Transformer Block
 
 ```
-TransformerBlock(h, x):
-    h_norm = LayerNorm(h)
-    attn_out = MultiHeadAttention(h_norm, context=x)
-    h = h + attn_out                    # Residual
-    h_norm = LayerNorm(h)
-    ffn_out = FeedForward(h_norm)
-    h = h + ffn_out                     # Residual
-    return h
+┌─────────────────────────────────────────────┐
+│                                             │
+│  x (input) ──┐                              │
+│              ▼                              │
+│  ┌─────────────────────┐                    │
+│  │   h_t (hidden)      │◄────────────┐      │
+│  └──────────┬──────────┘             │      │
+│             ▼                        │      │
+│  ┌─────────────────────┐             │      │
+│  │  LayerNorm          │             │      │
+│  └──────────┬──────────┘             │      │
+│             ▼                        │      │
+│  ┌─────────────────────┐             │      │
+│  │  MultiHeadAttn(h,x) │             │      │
+│  └──────────┬──────────┘             │      │
+│             ▼                        │      │
+│  ┌─────────────────────┐             │      │
+│  │  + Residual         │             │      │
+│  └──────────┬──────────┘             │      │
+│             ▼                        │      │
+│  ┌─────────────────────┐             │      │
+│  │  LayerNorm          │             │      │
+│  └──────────┬──────────┘             │      │
+│             ▼                        │      │
+│  ┌─────────────────────┐             │      │
+│  │  FFN                │             │      │
+│  └──────────┬──────────┘             │      │
+│             ▼                        │      │
+│  ┌─────────────────────┐             │      │
+│  │  + Residual ────────┼─────────────┘      │
+│  └──────────┬──────────┘                    │
+│             ▼                               │
+│         h_{t+1}                             │
+│             │                               │
+│             ▼ (iterate until ‖h-h'‖<ε)      │
+│          h* ──► Output Head ──► ŷ           │
+│                                             │
+└─────────────────────────────────────────────┘
 ```
 
-**Key considerations**:
-- Residual connections aid convergence
-- LayerNorm stabilizes dynamics
-- Consider spectral normalization on weights
+### Convergence Dynamics
 
-### 2. Relaxation Solver
+$$h_{t+1} = (1-\alpha)h_t + \alpha \cdot f_\theta(h_t; x)$$
 
-| Method | Speed | Memory | Stability |
-|--------|-------|--------|-----------|
-| Fixed-point iteration | Slow | O(1) | High |
-| Broyden's method | Fast | O(k·d) | Medium |
-| Anderson acceleration | Fast | O(k·d) | Medium |
+where $\alpha \in (0,1]$ is the damping factor. Convergence criterion:
 
-Recommended: **Broyden's method** with k=5 history vectors.
+$$\|h_{t+1} - h_t\|_2 < \epsilon \quad \text{or} \quad t > T_{\max}$$
 
-### 3. Nudging Strategy
-
-For different task types:
-
-| Task | Nudging Approach |
-|------|------------------|
-| Classification | Nudge classifier head on $h^*$ toward one-hot target |
-| Sequence-to-sequence | Nudge final tokens toward target tokens |
-| Language modeling | Nudge next-token prediction head |
-
-### 4. Stabilization Techniques
-
-- **Jacobian regularization**: Penalize $\|J_{f_\theta}\|$ to ensure contraction
-- **Timestep encodings**: From looped transformer literature
-- **Damping factor**: $h_{t+1} = (1-\alpha)h_t + \alpha f_\theta(h_t; x)$ with $\alpha < 1$
-
-### 5. Suggested Task Progression
-
-1. **MNIST** — Simple fixed-point classification
-2. **CIFAR-10** — Validate visual convergence
-3. **Simple language modeling** — Predict next token from equilibrium
-4. **Reasoning tasks** — Leverage adaptive compute depth
+**Required property**: Spectral radius $\rho(J_f) < 1$ where $J_f = \frac{\partial f}{\partial h}$
 
 ---
 
-## Pseudocode
+## Training Algorithm
 
-### Training Loop
+### Algorithm 1: TorEqProp Training Step
+
+```
+Input: x (input), y (target), β (nudge strength), ε (tolerance)
+Output: Updated parameters θ
+
+1. EQUILIBRIUM PHASE (Free)
+   h ← 0  # or learned initialization
+   repeat:
+       h' ← (1-α)h + α·f_θ(h; x)
+       if ‖h' - h‖ < ε: break
+       h ← h'
+   h* ← h
+   A* ← {layer activations at h*}
+
+2. EQUILIBRIUM PHASE (Nudged)  
+   h ← h*
+   repeat:
+       h' ← (1-α)h + α·f_θ(h; x)
+       ŷ ← OutputHead(h')
+       h' ← h' + β · ∇_h L(ŷ, y)  # Nudge toward target
+       if ‖h' - h‖ < ε: break
+       h ← h'
+   h^β ← h
+   A^β ← {layer activations at h^β}
+
+3. WEIGHT UPDATE (Contrastive Hebbian)
+   for each layer l:
+       ΔW_l ← (1/β) · (A^β_l ⊗ A^β_l - A*_l ⊗ A*_l)
+       θ_l ← θ_l - η · ΔW_l
+```
+
+### Gradient Equivalence Theorem
+
+**Theorem** (Scellier & Bengio, 2017; adapted): For energy-based dynamics at equilibrium $h^*$, as $\beta \to 0$:
+
+$$\frac{1}{\beta}(h^\beta - h^*) \to -(I - J_f)^{-1} \nabla_h \mathcal{L}$$
+
+and the contrastive update equals:
+
+$$\lim_{\beta \to 0} \frac{\Delta \theta}{\beta} = \nabla_\theta \mathcal{L}\big|_{h=h^*}$$
+
+**Empirical Validation**: Compute both gradients, report cosine similarity and L2 error.
+
+---
+
+## Experimental Plan
+
+### Experiment 1: Gradient Verification (Week 1-2)
+
+**Objective**: Prove EqProp gradients match BP gradients.
+
+| Component | Specification |
+|-----------|---------------|
+| Model | 1-block looped transformer, d=64, heads=4 |
+| Data | MNIST (28×28 flattened to sequence) |
+| Metric | Cosine sim(∇_EqProp, ∇_BP), L2 error |
+| β values | [0.5, 0.1, 0.01, 0.001] |
+| Success | Cosine sim > 0.99 at β=0.001 |
+
+**Protocol**:
+1. Forward pass to equilibrium (max 50 iters)
+2. Compute EqProp gradient via contrastive activations
+3. Compute BP gradient via torch.autograd on equilibrium
+4. Compare across 100 random batches
+
+### Experiment 2: Training Dynamics (Week 2-4)
+
+**Objective**: Train to convergence, compare learning curves.
+
+| Component | Specification |
+|-----------|---------------|
+| Model | 1-block looped transformer, d=128, heads=4 |
+| Data | MNIST train/test split |
+| Baseline | Same architecture trained with BP |
+| Metrics | Train loss, test accuracy, iterations/sample |
+| Success | ≥95% test accuracy, within 2% of BP baseline |
+
+**Ablations**:
+- β ∈ {0.01, 0.05, 0.1, 0.2}
+- Damping α ∈ {0.5, 0.7, 0.9, 1.0}
+- Solver: fixed-point vs. Anderson acceleration
+
+### Experiment 3: Scaling (Week 4-6)
+
+**Objective**: Validate on harder tasks, analyze scaling.
+
+| Task | Model Size | Target |
+|------|------------|--------|
+| CIFAR-10 | d=256, 1 block | ≥70% accuracy |
+| CIFAR-10 | d=256, 2 blocks (unrolled 2× per iter) | ≥75% accuracy |
+| Text classification (SST-2) | d=256, vocab=10k | ≥80% accuracy |
+
+**Scaling metrics**:
+- Iterations to convergence vs. model dimension
+- Wall-clock time vs. BP (same hardware)
+- Peak memory vs. BP
+
+### Experiment 4: Adaptive Compute (Week 6-8)
+
+**Objective**: Demonstrate variable-depth computation.
+
+**Protocol**:
+1. Train with fixed max_iters=50
+2. At test time, measure iterations to ε-convergence per sample
+3. Correlate iteration count with sample difficulty (margin, uncertainty)
+4. Compare to DEQ baseline (same equilibrium architecture, BP-trained)
+
+**Hypothesis**: Hard samples require more iterations; this correlates with model uncertainty.
+
+---
+
+## Success Criteria
+
+### Minimum Viable Publication (MVP)
+
+| Criterion | Threshold | Priority |
+|-----------|-----------|----------|
+| Gradient equivalence demonstrated | Cosine sim > 0.99 | 🔴 Critical |
+| MNIST convergence | ≥95% accuracy | 🔴 Critical |
+| Training completes | <24h on single GPU | 🟡 High |
+| Memory advantage shown | <50% of BP peak memory | 🟡 High |
+
+### Stretch Goals
+
+| Goal | Threshold | Priority |
+|------|-----------|----------|
+| CIFAR-10 competitive | Within 5% of BP baseline | 🟢 Medium |
+| Text classification | ≥75% SST-2 accuracy | 🟢 Medium |
+| Neuromorphic simulation | Run on Loihi/SpiNNaker | 🔵 Low |
+
+---
+
+## Implementation Specification
+
+### Core Classes
 
 ```python
-def train_step(model, x, y, beta=0.1, max_iters=50, tol=1e-5):
-    # === FREE PHASE ===
-    h = initialize_hidden(x)
-    for t in range(max_iters):
-        h_new = model.forward(h, x)
-        if norm(h_new - h) < tol:
-            break
-        h = h_new
-    h_free = h.detach()
+class LoopedTransformerBlock(nn.Module):
+    """Single weight-tied transformer block for equilibrium iteration."""
     
-    # Store free-phase activations
-    activations_free = get_layer_activations(model, h_free, x)
+    def __init__(self, d_model: int, n_heads: int, d_ff: int, dropout: float = 0.0):
+        # Standard transformer components
+        self.attn = nn.MultiheadAttention(d_model, n_heads, dropout=dropout)
+        self.ffn = nn.Sequential(
+            nn.Linear(d_model, d_ff),
+            nn.GELU(),
+            nn.Linear(d_ff, d_model)
+        )
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+        
+    def forward(self, h: Tensor, x: Tensor) -> Tensor:
+        # h: [seq, batch, d_model], x: [seq, batch, d_model]
+        h_norm = self.norm1(h)
+        attn_out, _ = self.attn(h_norm, x, x)  # Cross-attend to input
+        h = h + attn_out
+        h_norm = self.norm2(h)
+        h = h + self.ffn(h_norm)
+        return h
+
+
+class EquilibriumSolver:
+    """Fixed-point solver with convergence monitoring."""
     
-    # === NUDGED PHASE ===
-    h = h_free.clone()
-    for t in range(max_iters):
-        h_new = model.forward(h, x)
-        output = model.output_head(h_new)
-        nudge = beta * (y - output)          # Nudge toward target
-        h_new = h_new + project_nudge(nudge)  # Apply to relevant layers
-        if norm(h_new - h) < tol:
-            break
-        h = h_new
-    h_nudged = h
+    def __init__(self, max_iters: int = 50, tol: float = 1e-5, damping: float = 0.9):
+        self.max_iters = max_iters
+        self.tol = tol
+        self.damping = damping
+        
+    def solve(self, f: Callable, h0: Tensor, x: Tensor) -> Tuple[Tensor, int]:
+        h = h0
+        for t in range(self.max_iters):
+            h_new = (1 - self.damping) * h + self.damping * f(h, x)
+            residual = (h_new - h).norm()
+            if residual < self.tol:
+                return h_new, t + 1
+            h = h_new
+        return h, self.max_iters  # Did not converge
+
+
+class EqPropTrainer:
+    """Equilibrium Propagation training loop."""
     
-    # Store nudged-phase activations
-    activations_nudged = get_layer_activations(model, h_nudged, x)
-    
-    # === WEIGHT UPDATE (Contrastive Hebbian) ===
-    for param, act_free, act_nudged in zip(model.parameters(), 
-                                            activations_free, 
-                                            activations_nudged):
-        # Local Hebbian update
-        delta = (outer(act_nudged, act_nudged) - outer(act_free, act_free)) / beta
-        param.grad = -delta  # Negative because we minimize loss
-    
-    optimizer.step()
+    def __init__(self, model, solver, output_head, beta: float = 0.1, lr: float = 1e-3):
+        self.model = model
+        self.solver = solver
+        self.output_head = output_head
+        self.beta = beta
+        self.optimizer = torch.optim.Adam(
+            list(model.parameters()) + list(output_head.parameters()), 
+            lr=lr
+        )
+        
+    def train_step(self, x: Tensor, y: Tensor) -> Dict[str, float]:
+        # Free phase
+        h0 = torch.zeros_like(x)
+        h_free, iters_free = self.solver.solve(self.model, h0, x)
+        
+        # Nudged phase
+        def nudged_dynamics(h, x):
+            h_new = self.model(h, x)
+            y_pred = self.output_head(h_new.mean(dim=0))  # Pool over sequence
+            nudge = self.beta * torch.autograd.grad(
+                -F.cross_entropy(y_pred, y), h_new, retain_graph=True
+            )[0]
+            return h_new + nudge
+        
+        h_nudged, iters_nudged = self.solver.solve(nudged_dynamics, h_free.detach(), x)
+        
+        # Contrastive Hebbian update (simplified: use autodiff on difference)
+        loss_proxy = ((h_nudged - h_free.detach()) ** 2).mean()
+        self.optimizer.zero_grad()
+        loss_proxy.backward()
+        self.optimizer.step()
+        
+        # Metrics
+        with torch.no_grad():
+            y_pred = self.output_head(h_free.mean(dim=0))
+            acc = (y_pred.argmax(-1) == y).float().mean()
+            
+        return {
+            "loss": loss_proxy.item(),
+            "accuracy": acc.item(),
+            "iters_free": iters_free,
+            "iters_nudged": iters_nudged
+        }
 ```
 
-### Inference
+### Hyperparameter Defaults
 
-```python
-def inference(model, x, max_iters=100, tol=1e-6):
-    h = initialize_hidden(x)
-    for t in range(max_iters):
-        h_new = model.forward(h, x)
-        if norm(h_new - h) < tol:
-            print(f"Converged in {t+1} iterations")
-            break
-        h = h_new
-    return model.output_head(h)
+| Parameter | Default | Search Range | Notes |
+|-----------|---------|--------------|-------|
+| d_model | 128 | [64, 256, 512] | Start small |
+| n_heads | 4 | [2, 4, 8] | d_model must be divisible |
+| d_ff | 512 | 4 × d_model | Standard ratio |
+| β (nudge) | 0.1 | [0.01, 0.5] | Critical for gradient quality |
+| α (damping) | 0.9 | [0.5, 1.0] | 1.0 = no damping |
+| ε (tolerance) | 1e-5 | [1e-6, 1e-3] | Trade-off: precision vs. speed |
+| max_iters | 50 | [20, 100] | Set high initially |
+| lr | 1e-3 | [1e-4, 1e-2] | Adam default |
+
+### Logging & Monitoring
+
+Track per training step:
+- `loss`, `accuracy`
+- `iters_free`, `iters_nudged` (convergence speed)
+- `grad_cosine_sim` (vs. BP baseline, sample periodically)
+- `spectral_norm_jacobian` (stability diagnostic)
+
+**Wandb/TensorBoard integration recommended.**
+
+---
+
+## Risk Analysis
+
+### High-Risk Issues
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Non-convergence | Medium | 🔴 Fatal | Spectral norm regularization; constrained initialization |
+| Gradient mismatch | Low | 🔴 Fatal | Validate β→0 limit analytically; compare to DEQ |
+| Slow training | High | 🟡 Major | Anderson acceleration; learned initialization |
+
+### Contingency Plans
+
+**If convergence fails**:
+1. Switch to linear attention (guaranteed contraction)
+2. Add explicit Jacobian penalty: $\mathcal{L} += \lambda \|\|J_f\|\|_2$
+3. Use DEQ-style phantom gradient as fallback
+
+**If gradients don't match BP**:
+1. Verify implementation against reference EqProp code
+2. Check equilibrium is truly reached (tighten ε)
+3. May indicate attention breaks energy assumptions → investigate energy reformulation
+
+**If too slow**:
+1. Reduce max_iters, accept approximate equilibrium
+2. Parallel batch relaxation
+3. Early exit with residual as uncertainty measure
+
+---
+
+## Timeline
+
+```
+Week 1-2: Foundation
+├── Day 1-3: Implement LoopedTransformerBlock, EquilibriumSolver
+├── Day 4-7: Implement EqPropTrainer, verify forward pass
+├── Day 8-10: Gradient verification experiment (Exp 1)
+└── Day 11-14: Debug, iterate until gradients match
+
+Week 3-4: Training
+├── Day 15-18: Full training loop on MNIST
+├── Day 19-21: Hyperparameter sweep (β, α, lr)
+├── Day 22-25: Compare to BP baseline
+└── Day 26-28: Ablation studies, document results
+
+Week 5-6: Scaling
+├── Day 29-32: CIFAR-10 experiments
+├── Day 33-36: Text classification (SST-2)
+├── Day 37-40: Memory profiling, wall-clock comparison
+└── Day 41-42: Analyze scaling trends
+
+Week 7-8: Polish & Write
+├── Day 43-46: Adaptive compute experiments
+├── Day 47-50: Additional ablations, robustness checks
+├── Day 51-54: Paper writing
+└── Day 55-56: Internal review, submission prep
 ```
 
 ---
 
-## Potential Challenges & Mitigations
+## Resources Required
 
-### Convergence
+### Compute
 
-| Challenge | Severity | Mitigation |
-|-----------|----------|------------|
-| Spectral norm ≥ 1 | 🔴 High | Spectral normalization, residual scaling |
-| Oscillatory dynamics | 🟡 Medium | Damping, momentum-free updates |
-| Slow convergence | 🟡 Medium | Anderson acceleration, learned initialization |
+| Phase | GPU Hours | Hardware |
+|-------|-----------|----------|
+| Development | 50 | 1× A100 |
+| Exp 1-2 (MNIST) | 100 | 1× A100 |
+| Exp 3 (Scaling) | 200 | 2× A100 |
+| Exp 4 (Adaptive) | 100 | 1× A100 |
+| **Total** | **450** | ~$500-1000 cloud |
 
-### β-Scaling
+### Software Dependencies
 
-| Challenge | Severity | Mitigation |
-|-----------|----------|------------|
-| Too large β → biased gradients | 🟡 Medium | Start small (β=0.01), validate against BP |
-| Too small β → noisy gradients | 🟡 Medium | Larger batch sizes, gradient accumulation |
+```
+torch >= 2.0
+einops
+wandb
+scipy (for Anderson acceleration)
+```
 
-**Recommended schedule**: Linear warmup from β=0.001 to β=0.1 over first 10% of training.
+### Personnel
 
-### Sequential Data
-
-| Challenge | Severity | Mitigation |
-|-----------|----------|------------|
-| Temporal dependencies | 🟡 Medium | Inject input x persistently at each iteration |
-| Causal structure | 🟢 Low | Use causal attention masking as usual |
-
----
-
-## Open Research Questions
-
-1. **Attention compatibility**: Self-attention is non-contractive. Does TorEqProp require specialized variants (linear attention, sparse attention, or attention with explicit regularization)?
-
-2. **Energy formulation for attention**: Can we derive a rigorous energy function for the full transformer block including softmax attention?
-
-3. **Scaling laws**: How does convergence iteration count scale with model size? Does this affect the O(1) memory advantage in practice?
-
-4. **β-annealing**: What is the optimal schedule for β? Is there a principled way to adapt β during training?
-
-5. **Comparison with modern Hopfield networks**: How does TorEqProp relate to the polynomial energy Hopfield formulations that underlie modern associative memory transformers?
-
-6. **Non-equilibrium regimes**: Can useful learning occur before strict convergence? (cf. "early exit" strategies)
-
----
-
-## Limitations
-
-> [!CAUTION]
-> These are known limitations that future research should address.
-
-1. **Unvalidated**: No empirical results yet — this is purely theoretical.
-
-2. **Convergence uncertainty**: Standard transformer blocks may not satisfy contraction conditions without significant architectural modifications.
-
-3. **Computational overhead**: While memory is O(1), wall-clock time may exceed BP if many iterations are needed.
-
-4. **Attention energy problem**: No known closed-form energy for softmax attention; this may require approximations or alternative attention mechanisms.
-
-5. **Hyperparameter sensitivity**: β, damping factor, and convergence tolerance may require extensive tuning.
-
-6. **Limited to classification-like tasks initially**: Extension to generative modeling (autoregressive LLMs) requires careful design of the nudging mechanism.
-
----
-
-## Roadmap
-
-### Phase 1: Proof of Concept
-- [ ] Implement basic looped transformer with fixed-point iteration
-- [ ] Validate convergence on MNIST
-- [ ] Implement EqProp weight updates
-- [ ] Compare gradients to BP (small β limit)
-
-### Phase 2: Validation
-- [ ] Scale to CIFAR-10
-- [ ] Benchmark convergence speed vs. accuracy trade-off
-- [ ] Experiment with different relaxation solvers
-- [ ] Tune β-annealing schedules
-
-### Phase 3: Language
-- [ ] Adapt for next-token prediction
-- [ ] Test on small language modeling benchmarks (WikiText-2)
-- [ ] Explore adaptive compute for variable-difficulty inputs
-
-### Phase 4: Scale
-- [ ] Investigate scaling laws for TorEqProp
-- [ ] Neuromorphic hardware simulation/deployment
-- [ ] Compare to DEQ and Hopfield Transformer baselines
-
-### Phase 5: Extensions
-- [ ] Multi-modal inputs (vision-language)
-- [ ] Reinforcement learning integration
-- [ ] Online/continual learning scenarios
+- 1 researcher (full-time, 8 weeks)
+- 1 advisor (part-time review)
 
 ---
 
 ## Related Work
 
-### Looped/Universal Transformers
-- Dehghani et al. (2018) — Universal Transformers
-- Recent 2024–2025 works on expressive power and reasoning with weight-tied transformers
+### Foundational
 
-### Equilibrium Propagation
-- Scellier & Bengio (2017) — Original EqProp formulation
-- Laborieux et al. (2021) — Scaling EqProp to modern architectures
+| Paper | Year | Relevance |
+|-------|------|-----------|
+| Scellier & Bengio, "Equilibrium Propagation" | 2017 | Core algorithm |
+| Bai et al., "Deep Equilibrium Models" | 2019 | DEQ architecture |
+| Dehghani et al., "Universal Transformers" | 2018 | Looped transformers |
 
-### Deep Equilibrium Models (DEQ)
-- Bai et al. (2019) — DEQ for sequence modeling
-- Bai et al. (2020) — Multiscale DEQ
+### Recent (2023-2024)
 
-### Energy-Based Transformers
-- Ramsauer et al. (2020) — Hopfield Networks is All You Need
-- Hoover et al. (2023) — Energy Transformer
+| Paper | Year | Relevance |
+|-------|------|-----------|
+| Laborieux et al., "Scaling EqProp" | 2021 | Modern EqProp implementation |
+| Yang et al., "Looped Transformers for Reasoning" | 2024 | Expressive power results |
+| Hoover et al., "Energy Transformer" | 2023 | Energy-based attention |
 
-### Biologically Plausible Learning
-- Lillicrap et al. (2020) — Backpropagation and the brain
-- Whittington & Bogacz (2017) — Predictive coding approximates BP
+### To Distinguish From
+
+| Approach | Key Difference from TorEqProp |
+|----------|-------------------------------|
+| DEQ | Uses implicit diff with BP; not biologically plausible |
+| Hopfield Transformers | BP-trained; energy is descriptive not prescriptive |
+| Predictive Coding | Different local rule; not transformer-native |
 
 ---
 
-## Citation
+## Appendix: Mathematical Details
 
-If you use this specification in your research, please cite:
+### A1: Energy Formulation for Attention
 
-```bibtex
-@misc{toreqprop2024,
-  title={Toroidal Equilibrium Propagation for Transformers: A Theoretical Specification},
-  author={[Author]},
-  year={2024},
-  note={Theoretical research specification},
-  url={[URL]}
-}
-```
+**Open Problem**: Softmax attention lacks closed-form energy. Candidates:
+
+1. **Hopfield energy** (Ramsauer et al.):
+   $$E = -\sum_i \log \sum_j \exp(\beta q_i^T k_j) + \text{regularization}$$
+
+2. **Linear attention surrogate**:
+   $$\text{Attn}(Q,K,V) = \phi(Q)\phi(K)^T V$$
+   admits energy $E = -\frac{1}{2}\|V^T \phi(K)^T \phi(Q)\|^2$
+
+3. **Variational bound**: Treat softmax as approximate inference; derive ELBO-like energy.
+
+**Recommendation**: Start with linear attention for guaranteed results; investigate softmax post-hoc.
+
+### A2: Contraction Conditions
+
+For convergence, require $\|J_f\|_2 < 1$. Strategies:
+
+1. **Spectral normalization**: Divide weights by spectral norm
+2. **Residual scaling**: $h' = h + \gamma f(h)$ with $\gamma < 1$
+3. **Lipschitz FFN**: Use GroupSort or other Lipschitz activations
+
+### A3: β-Gradient Relationship
+
+Formal expansion (Scellier & Bengio):
+
+$$h^\beta = h^* + \beta \cdot v + O(\beta^2)$$
+
+where $v = -(I - J_f)^{-1} \nabla_h \mathcal{L}$.
+
+Weight gradient:
+
+$$\frac{\partial \mathcal{L}}{\partial \theta} = \lim_{\beta \to 0} \frac{1}{\beta} \left[ \frac{\partial E}{\partial \theta}\bigg|_{h^\beta} - \frac{\partial E}{\partial \theta}\bigg|_{h^*} \right]$$
+
+This recovers the implicit function theorem gradient used in DEQs.
+
+---
+
+## Quick Start Checklist
+
+- [ ] Clone repo, install dependencies
+- [ ] Run `python test_gradient_equiv.py` — verify gradient matching
+- [ ] Run `python train_mnist.py` — baseline training
+- [ ] Check wandb dashboard for convergence curves
+- [ ] Compare to `python train_mnist_bp.py` — BP baseline
 
 ---
 
 <div align="center">
 
-**TorEqProp** — Toward symmetric, local, biologically plausible transformer training.
+**TorEqProp** — Symmetric, local, biologically plausible transformer training.
+
+*Questions? Open an issue or contact [author@institution.edu]*
 
 </div>
