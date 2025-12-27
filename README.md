@@ -96,6 +96,40 @@
 └─────────────────────────────────────────────┘
 ```
 
+### Multi-Layer Toroid Configurations
+
+While the single-block design is the simplest, TorEqProp naturally extends to **multi-layer toroids** where multiple distinct blocks iterate together:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    MULTI-LAYER TOROID (L=3)                         │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│   x ──► [Block 1] ──► [Block 2] ──► [Block 3] ──► h_t               │
+│              ▲                                     │                │
+│              └─────────────────────────────────────┘                │
+│                         (iterate until convergence)                 │
+│                                                                     │
+│   Parameters: θ₁, θ₂, θ₃ (distinct, not weight-tied across blocks)  │
+│   Each iteration: h_{t+1} = f₃(f₂(f₁(h_t, x)))                     │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Architecture Search Space**:
+
+| Configuration | Blocks (L) | Weight Sharing | Parameters | Expressiveness |
+|--------------|------------|----------------|------------|----------------|
+| Single-block | 1 | — | 1× | Baseline |
+| Multi-block independent | 2-4 | None | L× | Higher |
+| Multi-block tied | 2-4 | Pairs share | ~L/2× | Regularized |
+| Hierarchical | 2-4 | Local+Global | Variable | Task-dependent |
+
+**Tradeoffs**:
+- More blocks → more expressive, but harder to converge (larger Jacobian)
+- Shared weights across blocks → regularization, easier convergence, fewer params
+- The "sweet spot" L is an empirical question this research will answer
+
 ### Convergence Dynamics
 
 $$h_{t+1} = (1-\alpha)h_t + \alpha \cdot f_\theta(h_t; x)$$
@@ -192,19 +226,40 @@ $$\lim_{\beta \to 0} \frac{\Delta \theta}{\beta} = \nabla_\theta \mathcal{L}\big
 - β ∈ {0.01, 0.05, 0.1, 0.2}
 - Damping α ∈ {0.5, 0.7, 0.9, 1.0}
 - Solver: fixed-point vs. Anderson acceleration
+- **Toroid depth L ∈ {1, 2, 3, 4}** — critical architecture search
+- Block weight-sharing: independent vs. tied pairs
+
+### Experiment 2.5: Architecture Search (Week 3-4)
+
+**Objective**: Find optimal toroid depth and configuration.
+
+| Configuration | Blocks | d_model | Expected Trade-off |
+|--------------|--------|---------|--------------------|
+| Shallow-wide | 1 | 256 | Fast convergence, limited depth |
+| Medium | 2 | 128 | Balanced |
+| Deep-narrow | 4 | 64 | High expressiveness, slow convergence |
+| Tied-pairs | 4 (2 unique) | 128 | Regularized, efficient |
+
+**Metrics**:
+- Accuracy vs. toroid depth L
+- Iterations to convergence vs. L
+- Gradient quality (cosine sim) vs. L — does depth degrade EqProp?
+
+**Key Question**: Does adding layers help more than adding iterations at fixed L=1?
 
 ### Experiment 3: Scaling (Week 4-6)
 
-**Objective**: Validate on harder tasks, analyze scaling.
+**Objective**: Validate on harder tasks with best architecture from Exp 2.5.
 
 | Task | Model Size | Target |
 |------|------------|--------|
-| CIFAR-10 | d=256, 1 block | ≥70% accuracy |
-| CIFAR-10 | d=256, 2 blocks (unrolled 2× per iter) | ≥75% accuracy |
+| CIFAR-10 | Best L from Exp 2.5, d=256 | ≥70% accuracy |
+| CIFAR-10 | L+1 blocks (test scaling) | ≥75% accuracy |
 | Text classification (SST-2) | d=256, vocab=10k | ≥80% accuracy |
 
 **Scaling metrics**:
 - Iterations to convergence vs. model dimension
+- Iterations to convergence vs. toroid depth L
 - Wall-clock time vs. BP (same hardware)
 - Peak memory vs. BP
 
