@@ -140,6 +140,47 @@ $$\|h_{t+1} - h_t\|_2 < \epsilon \quad \text{or} \quad t > T_{\max}$$
 
 **Required property**: Spectral radius $\rho(J_f) < 1$ where $J_f = \frac{\partial f}{\partial h}$
 
+### Convergence Aids
+
+To accelerate and stabilize equilibrium-finding, incorporate these techniques from the start:
+
+| Technique | Description | Benefit | Reference |
+|-----------|-------------|---------|------------|
+| **Anderson Acceleration** | Extrapolate from last k iterates | 2-5× faster convergence | Bai et al. 2019 (DEQ) |
+| **Learned Initialization** | Predict h₀ from x via small net | Skip early iterations | Universal Transformers |
+| **Timestep Encoding** | Inject iteration count t into layers | Helps model "know" progress | Yang et al. 2024 |
+| **Spectral Normalization** | Constrain weight norms | Guarantee contraction | Miyato et al. 2018 |
+
+**Implementation Priority**:
+1. Start with simple damped iteration (baseline)
+2. Add Anderson acceleration if convergence is slow (>30 iters)
+3. Add learned initialization if still slow
+4. Use spectral norm if convergence is unstable
+
+### Attention Variants for Guaranteed Convergence
+
+Softmax attention may violate contraction. Include **linear attention** as a fallback with guaranteed convergence:
+
+| Attention Type | Contraction Guarantee | Expressiveness | Use Case |
+|----------------|----------------------|----------------|----------|
+| **Softmax** | ❌ No (high Jacobian) | High | Primary (if stable) |
+| **Linear (Performer)** | ✅ Yes (bounded) | Medium | Fallback baseline |
+| **Cosine Similarity** | ✅ Yes (Lipschitz) | Medium | Alternative |
+| **Gated Linear** | ✅ Yes | Medium-High | Best compromise |
+
+```python
+# Performer-style linear attention (guaranteed contraction)
+def linear_attention(Q, K, V, eps=1e-6):
+    """φ(x) = elu(x) + 1 feature map."""
+    phi = lambda x: F.elu(x) + 1
+    Q_prime, K_prime = phi(Q), phi(K)
+    KV = torch.einsum('bnd,bnv->bdv', K_prime, V)
+    Z = torch.einsum('bnd,nd->bn', Q_prime, K_prime.sum(dim=0)) + eps
+    return torch.einsum('bnd,bdv->bnv', Q_prime, KV) / Z.unsqueeze(-1)
+```
+
+**Experimental Strategy**: Run all experiments with both softmax and linear attention. If softmax fails to converge, linear attention results are the MVP.
+
 ---
 
 ## Training Algorithm
@@ -175,6 +216,38 @@ Output: Updated parameters θ
        ΔW_l ← (1/β) · (A^β_l ⊗ A^β_l - A*_l ⊗ A*_l)
        θ_l ← θ_l - η · ΔW_l
 ```
+
+### Algorithm 1b: Purely Local Hebbian Nudging (Hardware-Friendly)
+
+> [!TIP]
+> For maximum biological plausibility and neuromorphic hardware compatibility, use **direct output clamping** instead of gradient-based nudging.
+
+```
+2b. NUDGED PHASE (Purely Local — No Autodiff)
+    h ← h*
+    repeat:
+        h' ← (1-α)h + α·f_θ(h; x)
+        
+        # Direct output perturbation (no gradient computation)
+        ŷ ← OutputHead(h')
+        output_error ← (y_onehot - softmax(ŷ))  # Simple error signal
+        h' ← h' + β · OutputHead.weight.T @ output_error  # Backproject error
+        
+        if ‖h' - h‖ < ε: break
+        h ← h'
+```
+
+**Key Differences**:
+
+| Aspect | Algorithm 1 (Autodiff) | Algorithm 1b (Purely Local) |
+|--------|------------------------|-----------------------------|
+| Gradient computation | `torch.autograd.grad` | None |
+| Error signal | ∇_h L | (y - ŷ) |
+| Hardware compatible | GPU only | Neuromorphic (Loihi, SpiNNaker) |
+| Biological plausibility | Medium | High |
+| Theoretical guarantee | Exact (β→0 limit) | Approximate |
+
+**Recommendation**: Use Algorithm 1 for validation (proves gradient equivalence), then demonstrate Algorithm 1b works comparably for hardware appeal.
 
 ### Gradient Equivalence Theorem
 
@@ -262,6 +335,32 @@ $$\lim_{\beta \to 0} \frac{\Delta \theta}{\beta} = \nabla_\theta \mathcal{L}\big
 - Iterations to convergence vs. toroid depth L
 - Wall-clock time vs. BP (same hardware)
 - Peak memory vs. BP
+
+### Experiment 3.5: Algorithmic Reasoning (Week 5-6)
+
+**Objective**: Test equilibrium's benefit for iterative reasoning tasks.
+
+> [!NOTE]
+> **Hypothesis**: Equilibrium models should excel at tasks requiring variable computation depth — the model can "think longer" on hard instances.
+
+| Task | Description | Why Equilibrium Helps | Target |
+|------|-------------|----------------------|--------|
+| **Parity** | XOR of N bits | Requires N sequential ops | 100% (N≤20) |
+| **Addition** | Add two N-digit numbers | Carry propagation is iterative | 95% (N≤10) |
+| **Copying** | Repeat input sequence | Tests memory capacity | 100% |
+| **Sorting** | Sort N numbers | Comparison chains | 90% (N≤8) |
+
+**Protocol**:
+1. Train on fixed sequence length, test on variable lengths
+2. Measure **iterations vs. problem difficulty** (e.g., # of 1s for parity)
+3. Compare to fixed-depth transformer with matched parameters
+
+**Key Metrics**:
+- Does iteration count correlate with problem complexity?
+- Does the equilibrium model generalize to longer sequences?
+- Can we visualize "reasoning steps" via intermediate h_t states?
+
+**Success Criterion**: On at least one task, TorEqProp shows adaptive compute that correlates with difficulty AND outperforms matched fixed-depth baseline.
 
 ### Experiment 4: Adaptive Compute (Week 6-8)
 
