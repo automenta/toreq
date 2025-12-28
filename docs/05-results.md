@@ -210,3 +210,32 @@ dropout: 0.1     # Regularization
 3. **3% accuracy gap** from BP — competitive and promising
 4. **Higher β counterintuitively improves training** — novel finding
 5. **O(1) memory claim requires LocalHebbianUpdate** — implemented and ready
+
+---
+
+## Next Steps
+
+### Immediate Experiments
+
+| Priority | Experiment | Command | Expected |
+|----------|------------|---------|----------|
+| 1 | β=0.25 fixed training | `./run_experiments.sh accuracy` | 94-95% |
+| 2 | Multi-seed validation | `./run_experiments.sh multiseed` | Mean ≥94% |
+| 3 | O(1) memory profile | `./run_experiments.sh memory` | <0.5× BP |
+| 4 | Adaptive compute | `./run_experiments.sh adaptive` | Correlation |
+
+### Questions to Answer
+
+1. **Does β=0.25 fixed achieve 95%+?** (Critical for main paper claim)
+2. **What is variance across seeds?** (Statistical significance)
+3. **Does O(1) memory scale to d=2048?** (Hardware feasibility)
+4. **Do hard digits require more iterations?** (Adaptive compute novelty)
+
+### Analysis Needed
+
+- [ ] β stability boundary precise characterization
+- [ ] Memory scaling curve (EqProp vs BP)
+- [ ] Iteration count vs sample difficulty correlation
+- [ ] Per-class accuracy breakdown
+- [ ] Convergence speed analysis
+
