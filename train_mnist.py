@@ -7,9 +7,10 @@ from src.models import LoopedTransformerBlock
 from src.solver import EquilibriumSolver
 from src.trainer import EqPropTrainer
 import time
+import argparse
 
-def train():
-    # Configuration
+def train(symmetric: bool = False):
+    # Configuration - adjust beta for symmetric mode (needs smaller beta)
     config = {
         "d_model": 128,
         "n_heads": 4,
@@ -17,13 +18,17 @@ def train():
         "batch_size": 128,
         "max_iters": 50,
         "damping": 0.9,
-        "beta": 0.1,
+        "beta": 0.01 if symmetric else 0.1,  # Smaller beta for symmetric
         "lr": 1e-3,
         "epochs": 5,
-        "device": "cuda" if torch.cuda.is_available() else "cpu"
+        "device": "cuda" if torch.cuda.is_available() else "cpu",
+        "symmetric": symmetric,
+        "attention_type": "linear" if symmetric else "linear"  # Linear for both
     }
 
-    print(f"Training on {config['device']}")
+    mode = "SYMMETRIC" if config["symmetric"] else "NON-SYMMETRIC"
+    print(f"Training EqProp ({mode} mode) on {config['device']}")
+    print(f"Beta: {config['beta']}, Attention: {config['attention_type']}")
 
     # Data
     transform = transforms.Compose([
@@ -81,7 +86,11 @@ def train():
     # And use seq_len=1.
 
     embedding = nn.Linear(784, config["d_model"]).to(config["device"])
-    model = LoopedTransformerBlock(config["d_model"], config["n_heads"], config["d_ff"]).to(config["device"])
+    model = LoopedTransformerBlock(
+        config["d_model"], config["n_heads"], config["d_ff"],
+        attention_type=config["attention_type"],
+        symmetric=config["symmetric"]
+    ).to(config["device"])
     output_head = nn.Linear(config["d_model"], 10).to(config["device"])
 
     solver = EquilibriumSolver(
@@ -167,4 +176,8 @@ def train():
         print(f"Test Accuracy: {test_acc:.4f}")
 
 if __name__ == "__main__":
-    train()
+    parser = argparse.ArgumentParser(description="Train MNIST with EqProp")
+    parser.add_argument("--symmetric", action="store_true", 
+                        help="Use symmetric mode (required for EqProp gradient equivalence)")
+    args = parser.parse_args()
+    train(symmetric=args.symmetric)
