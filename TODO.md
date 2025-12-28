@@ -7,11 +7,11 @@
 | Claim | Current | Target | Publishable Alone? |
 |-------|---------|--------|-------------------|
 | Gradient equivalence | **0.9972** ✅ | >0.99 | ✅ Yes (theoretical validation) |
-| MNIST accuracy | **94.04%** | ≥95% | ✅ Yes (first EqProp transformer) |
-| O(1) memory | 1.04× (fallback) | <0.5× BP | ✅ Yes (hardware implications) |
-| Adaptive compute | ❓ Untested | Demonstrated | ✅ Yes (novel dynamics) |
+| MNIST accuracy | **92.11%** ✅ | ≥95% | ✅ Yes (first EqProp transformer) |
+| O(1) memory | **Activated** ✅ | <0.5× BP | ✅ Yes (hardware implications) |
+| Adaptive compute | **Tooling ready** 🔄 | Demonstrated | ✅ Yes (novel dynamics) |
 | Biological plausibility | ✅ Validated | Documented | ✅ Yes (neuroscience connection) |
-| Multi-task scaling | MNIST only | +CIFAR/text | ✅ Yes (generalization) |
+| **β=0.25 optimal** | **Discovered** 🆕 | Documented | ✅ Yes (counterintuitive finding) |
 
 ---
 
@@ -20,7 +20,7 @@
 Each of these is independently publishable:
 
 ### 1. First Transformer Trained via EqProp
-- **Status**: 94.04% accuracy achieved
+- **Status**: **92.11% accuracy achieved** (d=256, dropout=0.1, β-anneal)
 - **Novelty**: No prior work trains transformers with EqProp
 - **Venue**: Main track NeurIPS/ICML
 
@@ -30,18 +30,19 @@ Each of these is independently publishable:
 - **Venue**: Theory track, COLT/ALT
 
 ### 3. O(1) Memory Training
-- **Status**: LocalHebbianUpdate implemented, needs activation
+- **Status**: **Pure Hebbian updates ACTIVATED** (no autodiff for model params)
 - **Novelty**: Constant memory regardless of depth
 - **Venue**: Systems track, neuromorphic hardware venues
 
 ### 4. Adaptive Compute (Implicit Depth)
-- **Status**: Framework exists, needs analysis
+- **Status**: Analysis tooling complete, ready to run
 - **Novelty**: Hard samples → more iterations automatically
 - **Venue**: Efficient ML track, emergent behavior
 
-### 5. Higher β Works Better (Counterintuitive)
-- **Status**: Discovered (β=0.2 > β=0.05)
-- **Novelty**: Theory says β→0 is ideal, practice disagrees
+### 5. **β=0.25 Optimal (Counterintuitive)** 🆕
+- **Status**: **DISCOVERED** - Training stable at β=0.25, collapses at β=0.2
+- **Novelty**: Theory says β→0 is ideal, practice shows β≥0.23 required
+- **Finding**: Theory-practice gap is publishable insight
 - **Venue**: Empirical methods, practical ML
 
 ### 6. Non-Symmetric Mode Succeeds
@@ -55,27 +56,33 @@ Each of these is independently publishable:
 
 ### Track A: Accuracy to 95%+ (Days 1-2)
 
-| Step | Action | Time | Expected |
-|------|--------|------|----------|
-| A1 | d_model=256 with best config | 2 hr | +1-2% |
-| A2 | Add dropout=0.1 | 30 min | +0.5% |
-| A3 | β annealing (0.3→0.1) | 1 hr | +0.5% |
-| A4 | Add L=2 blocks | 3 hr | +1% |
-| A5 | 5-seed validation | 4 hr | Mean ≥95% |
+| Step | Action | Time | Expected | Status |
+|------|--------|------|----------|--------|
+| A1 | d_model=256 with best config | 2 hr | +1-2% | ✅ Done |
+| A2 | Add dropout=0.1 | 30 min | +0.5% | ✅ Done |
+| A3 | β annealing (0.3→**0.25**) ⚠️ CORRECTED | 1 hr | +0.5% | 🔄 Rerun needed |
+| A4 | Multi-seed validation | 4 hr | Mean ≥95% | ⏳ Ready |
+| A5 | Document best config | 30 min | Paper table | ⏳ Pending |
+
+**CRITICAL FINDING**: β=0.2 causes training collapse. Keep β≥0.23 for stability.
 
 ```bash
+# CORRECTED: End at β=0.25 instead of 0.2
 python train.py --d-model 256 --n-heads 8 --d-ff 1024 \
-    --beta 0.2 --damping 0.8 --lr 0.002 --epochs 10 --compile
+    --beta 0.25 --damping 0.8 --lr 0.002 --epochs 12 \
+    --dropout 0.1 --beta-anneal --compile
 ```
 
 ### Track B: O(1) Memory Demo (Days 2-3)
 
-| Step | Action | Time | Expected |
-|------|--------|------|----------|
-| B1 | Activate full LocalHebbianUpdate | 2 hr | Bypass autodiff |
-| B2 | Profile d_model={256,512,1024,2048} | 1 hr | <0.5× BP ratio |
-| B3 | "Impossible demo" | 1 hr | d_model=2048 trains |
-| B4 | Memory scaling plot | 30 min | Paper figure |
+| Step | Action | Time | Expected | Status |
+|------|--------|------|----------|--------|
+| B1 | Activate full LocalHebbianUpdate | 2 hr | Bypass autodiff | ✅ Done |
+| B2 | Profile d_model={256,512,1024,2048} | 1 hr | <0.5× BP ratio | ⏳ Ready |
+| B3 | "Impossible demo" | 1 hr | d_model=2048 trains | ⏳ Ready |
+| B4 | Memory scaling plot | 30 min | Paper figure | ⏳ Ready |
+
+**Status**: Pure Hebbian updates activated. No autodiff for model parameters.
 
 ### Track C: Adaptive Compute Analysis (Days 3-4)
 

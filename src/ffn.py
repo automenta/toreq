@@ -36,14 +36,15 @@ class FeedForward(ABC, nn.Module):
 class StandardFFN(FeedForward):
     """Standard feed-forward network with GELU activation.
     
-    Architecture: Linear -> GELU -> Linear
+    Architecture: Linear -> GELU -> Dropout -> Linear
     """
     
-    def __init__(self, d_model: int, d_ff: int):
+    def __init__(self, d_model: int, d_ff: int, dropout: float = 0.0):
         super().__init__(d_model, d_ff)
         self.net = nn.Sequential(
             nn.Linear(d_model, d_ff),
             nn.GELU(),
+            nn.Dropout(dropout),
             nn.Linear(d_ff, d_model)
         )
     

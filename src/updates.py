@@ -229,13 +229,8 @@ class LocalHebbianUpdate(UpdateStrategy):
         self.weight_updates = self.compute_hebbian_updates()
         
         # Return None - we'll apply updates directly, not via backprop
-        # For now, fall back to MSE proxy for compatibility with existing trainer
-        # Full O(1) implementation would call apply_updates_to_model directly
-        
-        # MSE proxy fallback for integration
-        h_out = model(h_free.detach(), x)
-        loss = (1.0 / self.beta) * F.mse_loss(h_out, h_nudged.detach())
-        return loss
+        # This enables TRUE O(1) memory training with no autodiff
+        return None
     
     def compute_head_update(self, output_head: nn.Module, h_free: Tensor,
                            y: Tensor) -> Tensor:

@@ -23,7 +23,7 @@ class EqPropTrainer:
 
     def __init__(self, model: nn.Module, solver: EquilibriumSolver, 
                  output_head: nn.Module, beta: float = 0.1, lr: float = 1e-3, 
-                 update_mode: str = 'mse_proxy'):
+                 update_mode: str = 'mse_proxy', beta_schedule=None):
         """Initialize EqProp trainer.
         
         Args:
@@ -33,6 +33,7 @@ class EqPropTrainer:
             beta: Nudge strength parameter
             lr: Learning rate
             update_mode: Update strategy ('mse_proxy' or 'vector_field')
+            beta_schedule: Optional callable (epoch -> beta) for β annealing
             
         Raises:
             ValueError: If update_mode is not recognized
@@ -41,6 +42,8 @@ class EqPropTrainer:
         self.solver = solver
         self.output_head = output_head
         self.beta = beta
+        self.beta_schedule = beta_schedule
+        self.current_epoch = 0
         
         # Initialize update strategy
         self.update_strategy = self._create_update_strategy(update_mode, beta)
@@ -66,6 +69,20 @@ class EqPropTrainer:
                 f"Must be 'mse_proxy', 'vector_field', or 'local_hebbian'"
             )
     
+    def update_beta(self, epoch: int = None):
+        """Update β value based on schedule or epoch.
+        
+        Args:
+            epoch: Current epoch number. If None, uses self.current_epoch
+        """
+        if epoch is not None:
+            self.current_epoch = epoch
+        
+        if self.beta_schedule is not None:
+            new_beta = self.beta_schedule(self.current_epoch)
+            self.beta = new_beta
+            self.update_strategy.beta = new_beta
+    
     def train_step(self, x: Tensor, y: Tensor) -> Dict[str, float]:
         """Single training step using Equilibrium Propagation.
         
@@ -82,10 +99,18 @@ class EqPropTrainer:
         Returns:
             Dictionary with loss, accuracy, and iteration counts
         """
+        # Register hooks for LocalHebbianUpdate if needed
+        if isinstance(self.update_strategy, LocalHebbianUpdate):
+            self.update_strategy.register_hooks(self.model)
+        
         # Phase 1: Find free equilibrium (without nudging)
+        if isinstance(self.update_strategy, LocalHebbianUpdate):
+            self.update_strategy.phase = 'free'
         h_free, iters_free = self._solve_free_equilibrium(x)
         
         # Phase 2: Find nudged equilibrium (with loss-based nudging)
+        if isinstance(self.update_strategy, LocalHebbianUpdate):
+            self.update_strategy.phase = 'nudged'
         h_nudged, iters_nudged = self._solve_nudged_equilibrium(h_free, x, y)
         
         # Phase 3: Update parameters using configured strategy
@@ -134,7 +159,24 @@ class EqPropTrainer:
             self.output_head, h_free, y
         )
         
-        # Apply gradients
+        # Special handling for LocalHebbianUpdate (O(1) memory mode)
+        if isinstance(self.update_strategy, LocalHebbianUpdate) and model_loss is None:
+            # Pure Hebbian: apply weight updates directly without autodiff
+            # This is the TRUE O(1) memory implementation
+            head_loss.backward()  # Only backprop for output head
+            
+            # Apply Hebbian updates directly to model parameters
+            with torch.no_grad():
+                for name, module in self.model.named_modules():
+                    if isinstance(module, nn.Linear) and name in self.update_strategy.weight_updates:
+                        # Get learning rate from optimizer
+                        lr = self.optimizer.param_groups[0]['lr']
+                        # Apply update: W = W + lr * ΔW
+                        module.weight.data += lr * self.update_strategy.weight_updates[name]
+            
+            return head_loss
+        
+        # Standard backprop path (MSE proxy or vector field)
         if model_loss is not None:
             # MSE proxy: single backward pass
             total_loss = model_loss + head_loss

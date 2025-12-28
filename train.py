@@ -187,13 +187,22 @@ def main():
         damping=config.damping
     )
     
+    # Create β schedule if annealing is enabled
+    beta_schedule = None
+    if config.beta_anneal:
+        # Linear anneal from 0.3 to final beta over epochs
+        beta_start = 0.3
+        beta_end = config.beta
+        beta_schedule = lambda epoch: beta_start + (beta_end - beta_start) * (epoch / max(1, config.epochs - 1))
+    
     trainer = EqPropTrainer(
         model, 
         solver, 
         output_head,
-        beta=config.beta,
+        beta=config.beta if not config.beta_anneal else 0.3,  # Start high if annealing
         lr=config.lr,
-        update_mode=config.update_mode
+        update_mode=config.update_mode,
+        beta_schedule=beta_schedule
     )
     
     # Add embedding to optimizer
@@ -202,6 +211,10 @@ def main():
     # Training loop
     best_acc = 0
     for epoch in range(config.epochs):
+        # Update β if annealing
+        trainer.update_beta(epoch)
+        if config.beta_anneal:
+            print(f"Beta for epoch {epoch}: {trainer.beta:.4f}")
         # Train
         train_metrics = train_epoch(trainer, embedding, train_loader, config, epoch)
         

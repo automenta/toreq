@@ -31,6 +31,7 @@ class TorEqPropConfig:
     
     # EqProp training
     beta: float = 0.1
+    beta_anneal: bool = False  # Linear anneal β from 0.3 to 0.1
     lr: float = 1e-3
     epochs: int = 5
     update_mode: str = "mse_proxy"  # mse_proxy, vector_field

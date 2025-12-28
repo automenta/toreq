@@ -49,7 +49,7 @@ class LoopedTransformerBlock(nn.Module):
                                                  attention_type, symmetric)
         
         # Initialize FFN module
-        self.ffn = self._create_ffn(d_model, d_ff, symmetric)
+        self.ffn = self._create_ffn(d_model, d_ff, dropout, symmetric)
         
         # Initialize normalization layers (only for non-symmetric mode)
         if not symmetric:
@@ -70,12 +70,12 @@ class LoopedTransformerBlock(nn.Module):
                 return LinearAttention(d_model, n_heads)
     
     @staticmethod
-    def _create_ffn(d_model: int, d_ff: int, symmetric: bool):
+    def _create_ffn(d_model: int, d_ff: int, dropout: float, symmetric: bool):
         """Factory method for creating FFN module."""
         if symmetric:
             return SymmetricFFN(d_model, d_ff)
         else:
-            return StandardFFN(d_model, d_ff)
+            return StandardFFN(d_model, d_ff, dropout)
     
     def forward(self, h: Tensor, x: Tensor) -> Tensor:
         """Forward pass with equilibrium dynamics.
