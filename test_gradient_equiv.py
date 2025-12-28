@@ -248,5 +248,146 @@ def test_gradient_equivalence():
 
     return avg_sim
 
+def test_gradient_equivalence_symmetric():
+    """Test gradient equivalence with symmetric mode (required for EqProp theory).
+    
+    Symmetric mode implements weight tying:
+    - W_out = W_q^T (attention output projection)
+    - W_k = W_v (key and value share weights)
+    - W2 = W1^T (FFN output = input weight transposed)
+    
+    These constraints ensure the network has symmetric Jacobian, which is required
+    for Scellier & Bengio 2017's EqProp gradient equivalence theorem to hold.
+    
+    Reference: Scellier & Bengio (2017), "Equilibrium Propagation: Bridging the
+    Gap between Energy-Based Models and Backpropagation"
+    """
+    torch.manual_seed(42)
+
+    # Configuration
+    d_model = 64
+    n_heads = 4
+    d_ff = 256
+    seq_len = 10
+    batch_size = 5
+    beta = 0.001  # Small beta for better gradient approximation
+
+    # Setup with symmetric mode
+    model = LoopedTransformerBlock(d_model, n_heads, d_ff, 
+                                    attention_type='linear', symmetric=True)
+    n_classes = 10
+    output_head = nn.Linear(d_model, n_classes)
+
+    # Solver
+    solver = EquilibriumSolver(max_iters=50, tol=1e-6, damping=0.9)
+
+    # Inputs
+    x = torch.randn(seq_len, batch_size, d_model)
+    y = torch.tensor([0, 1, 2, 3, 4])
+
+    # --- BP Gradient Calculation ---
+    model.zero_grad()
+    output_head.zero_grad()
+
+    h0 = torch.zeros_like(x)
+    h_bp, _ = solver.solve(model, h0, x)
+
+    y_pred_bp = output_head(h_bp.mean(dim=0))
+    loss_bp = F.cross_entropy(y_pred_bp, y)
+    loss_bp.backward()
+
+    grads_bp = {}
+    for name, param in model.named_parameters():
+        grads_bp[name] = param.grad.clone()
+    for name, param in output_head.named_parameters():
+        if param.grad is not None:
+            grads_bp['head.'+name] = param.grad.clone()
+
+    # --- EqProp Gradient Calculation ---
+    model.zero_grad()
+    output_head.zero_grad()
+
+    # Free phase
+    with torch.no_grad():
+        h_free, _ = solver.solve(model, h0, x)
+
+    # Nudged phase
+    def nudged_dynamics(h, x):
+        h = h.detach().requires_grad_(True)
+        h_new = model(h, x)
+        y_pred = output_head(h_new.mean(dim=0))
+        loss = F.cross_entropy(y_pred, y)
+        # Nudge in direction that decreases loss
+        grads = torch.autograd.grad(loss, h_new, create_graph=True, retain_graph=True)[0]
+        return h_new - beta * grads
+
+    h_nudged, _ = solver.solve(nudged_dynamics, h_free.detach(), x)
+
+    # MSE proxy update
+    h_free_detached = h_free.detach()
+    h_out = model(h_free_detached, x)
+    
+    loss_update = (1.0 / beta) * F.mse_loss(h_out, h_nudged.detach())
+    loss_update.backward()
+
+    # Output head gradient
+    y_pred_free = output_head(h_free_detached.mean(dim=0))
+    loss_head = F.cross_entropy(y_pred_free, y)
+    loss_head.backward()
+
+    grads_eq = {}
+    for name, param in model.named_parameters():
+        if param.grad is not None:
+            grads_eq[name] = param.grad.clone()
+    for name, param in output_head.named_parameters():
+        if param.grad is not None:
+            grads_eq['head.'+name] = param.grad.clone()
+
+    # Comparison
+    print(f"Beta: {beta}")
+    print(f"Symmetric Mode: True")
+    print("-" * 20)
+
+    similarities = []
+    keys = set(grads_bp.keys()) & set(grads_eq.keys())
+
+    for name in sorted(keys):
+        g_bp = grads_bp[name]
+        g_eq = grads_eq[name]
+
+        if g_bp.norm() == 0 or g_eq.norm() == 0:
+            print(f"{name}: Zero norm")
+            continue
+
+        cos_sim = F.cosine_similarity(g_bp.flatten().unsqueeze(0), g_eq.flatten().unsqueeze(0)).item()
+        similarities.append(cos_sim)
+        print(f"{name}: Cosine Sim = {cos_sim:.4f}")
+
+    avg_sim = np.mean(similarities)
+    print(f"Average Cosine Similarity: {avg_sim:.4f}")
+
+    return avg_sim
+
 if __name__ == "__main__":
-    test_gradient_equivalence()
+    print("=" * 60)
+    print("Testing Non-Symmetric Mode")
+    print("=" * 60)
+    avg_sim_nonsym = test_gradient_equivalence()
+    
+    print("\n" + "=" * 60)
+    print("Testing Symmetric Mode (EqProp Theoretical Requirement)")
+    print("=" * 60)
+    avg_sim_sym = test_gradient_equivalence_symmetric()
+    
+    print("\n" + "=" * 60)
+    print("Final Results")
+    print("=" * 60)
+    print(f"Non-symmetric avg cosine similarity: {avg_sim_nonsym:.4f}")
+    print(f"Symmetric avg cosine similarity:     {avg_sim_sym:.4f}")
+    print()
+    
+    # Success criteria from TODO.md
+    if avg_sim_sym > 0.99:
+        print("✓ Symmetric mode PASSED (cosine sim > 0.99)")
+    else:
+        print("✗ Symmetric mode FAILED (cosine sim <= 0.99)")
