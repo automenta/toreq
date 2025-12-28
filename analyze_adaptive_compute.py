@@ -60,10 +60,14 @@ def load_model_and_data(checkpoint_path: str, batch_size: int = 128):
     ).to(device)
     output_head = nn.Linear(config['d_model'], 10).to(device)
     
-    # Load weights
-    embedding.load_state_dict(checkpoint['embedding'])
-    model.load_state_dict(checkpoint['model'])
-    output_head.load_state_dict(checkpoint['output_head'])
+    # Load weights (handle torch.compile wrapped models)
+    def strip_compile_prefix(state_dict):
+        """Remove _orig_mod. prefix from compiled model state dicts."""
+        return {k.replace('_orig_mod.', ''): v for k, v in state_dict.items()}
+    
+    embedding.load_state_dict(strip_compile_prefix(checkpoint['embedding']))
+    model.load_state_dict(strip_compile_prefix(checkpoint['model']))
+    output_head.load_state_dict(strip_compile_prefix(checkpoint['output_head']))
     
     # Set to eval mode
     embedding.eval()
