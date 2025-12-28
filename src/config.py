@@ -37,7 +37,7 @@ class TorEqPropConfig:
     
     # Performance
     compile: bool = False  # Use torch.compile
-    seed: Optional[int] = None  # Random seed for reproducibility
+    seed: int = -1  # Random seed for reproducibility (-1 = no seed)
     
     # Logging
     wandb: bool = False
@@ -87,9 +87,14 @@ class TorEqPropConfig:
                         help=f"Enable {field_name}"
                     )
             else:
+                # Handle Optional types - extract the actual type
+                actual_type = field_type
+                if hasattr(field_type, '__origin__') and field_type.__origin__ is Optional:
+                    actual_type = field_type.__args__[0]
+                
                 parser.add_argument(
                     f"--{field_name.replace('_', '-')}", 
-                    type=field_type if field_type != Optional else str,
+                    type=actual_type,
                     default=default_val,
                     help=f"{field_name}"
                 )
@@ -112,7 +117,7 @@ class TorEqPropConfig:
             raise ValueError("Symmetric mode requires attention_type='linear'")
         
         # Set random seed if specified
-        if self.seed is not None:
+        if self.seed >= 0:
             torch.manual_seed(self.seed)
             if torch.cuda.is_available():
                 torch.cuda.manual_seed_all(self.seed)

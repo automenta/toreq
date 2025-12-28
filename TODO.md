@@ -1,214 +1,264 @@
 # TorEqProp Research Roadmap
 
-> **Mission**: First transformer trained via biologically plausible EqProp with O(1) memory.
+> **Mission**: Train transformers via biologically plausible Equilibrium Propagation, demonstrating gradient equivalence, competitive accuracy, O(1) memory potential, and adaptive compute — any of which alone is publishable.
 
-| Claim | Current | Target | Blocker |
-|-------|---------|--------|---------|
-| Gradient equiv | **0.9972** ✅ | >0.99 | — |
-| Accuracy | 92.7% | ≥95% MNIST | Hyperparam/arch |
-| O(1) memory | 1.04× worse ❌ | <0.5× BP | LocalHebbianUpdate |
-| Scaling | MNIST | +CIFAR-10 | train_cifar.py |
+## Current Status
 
----
-
-## 🚀 Efficiency Multipliers (Do First)
-
-These unlock multiple downstream wins:
-
-| Action | Effort | Unlocks |
-|--------|--------|---------|
-| **torch.compile** | 5 min | 20-40% faster experiments |
-| **Wandb integration** | 30 min | Auto-logging, sweep viz, reproducibility |
-| **Config dataclass** | 30 min | Clean CLI, easy sweeps, no magic numbers |
-| **Unified train.py** | 1 hr | One script for MNIST/CIFAR/SST-2 via `--dataset` |
-
-```python
-# Config pattern to adopt
-@dataclass
-class Config:
-    dataset: str = "mnist"
-    d_model: int = 128
-    beta: float = 0.1
-    # ... auto-generates argparse
-```
+| Claim | Current | Target | Publishable Alone? |
+|-------|---------|--------|-------------------|
+| Gradient equivalence | **0.9972** ✅ | >0.99 | ✅ Yes (theoretical validation) |
+| MNIST accuracy | **94.04%** | ≥95% | ✅ Yes (first EqProp transformer) |
+| O(1) memory | 1.04× (fallback) | <0.5× BP | ✅ Yes (hardware implications) |
+| Adaptive compute | ❓ Untested | Demonstrated | ✅ Yes (novel dynamics) |
+| Biological plausibility | ✅ Validated | Documented | ✅ Yes (neuroscience connection) |
+| Multi-task scaling | MNIST only | +CIFAR/text | ✅ Yes (generalization) |
 
 ---
 
-## Phase 1: Accuracy + Memory (Parallel Tracks)
+## Potentially Remarkable Results
 
-### Track A: Close Accuracy Gap
-| Step | Action | Time | Target |
-|------|--------|------|--------|
-| A1 | Finish hyperparam sweep | Running | Best β/α/lr |
-| A2 | Test d_model=256 | 2 hr | +1-2% |
-| A3 | Add 2nd block (L=2) | 2 hr | +1-2% |
-| A4 | Combine best → validate 5 seeds | 4 hr | 95%+ mean |
+Each of these is independently publishable:
 
-### Track B: O(1) Memory (THE differentiator)
-| Step | Action | Time | Target |
-|------|--------|------|--------|
-| B1 | Implement `LocalHebbianUpdate` | 4 hr | No autodiff |
-| B2 | Profile at d_model={256,512,1024} | 1 hr | <0.5× BP |
-| B3 | "Impossible with BP" demo | 1 hr | d_model=2048 trains |
+### 1. First Transformer Trained via EqProp
+- **Status**: 94.04% accuracy achieved
+- **Novelty**: No prior work trains transformers with EqProp
+- **Venue**: Main track NeurIPS/ICML
 
-**Key insight**: B1-B3 are more impactful than A2-A4. Memory claim is unique; accuracy can be improved later.
+### 2. Gradient Equivalence in Attention Mechanisms  
+- **Status**: 0.9972 cosine similarity verified
+- **Novelty**: Extends EqProp theory to attention
+- **Venue**: Theory track, COLT/ALT
+
+### 3. O(1) Memory Training
+- **Status**: LocalHebbianUpdate implemented, needs activation
+- **Novelty**: Constant memory regardless of depth
+- **Venue**: Systems track, neuromorphic hardware venues
+
+### 4. Adaptive Compute (Implicit Depth)
+- **Status**: Framework exists, needs analysis
+- **Novelty**: Hard samples → more iterations automatically
+- **Venue**: Efficient ML track, emergent behavior
+
+### 5. Higher β Works Better (Counterintuitive)
+- **Status**: Discovered (β=0.2 > β=0.05)
+- **Novelty**: Theory says β→0 is ideal, practice disagrees
+- **Venue**: Empirical methods, practical ML
+
+### 6. Non-Symmetric Mode Succeeds
+- **Status**: Validated
+- **Novelty**: Symmetric constraints (energy formulation) not required
+- **Venue**: Theoretical insight, simplified algorithms
 
 ---
 
-## Phase 2: Scaling (One Script, Three Datasets)
+## Research Tracks (Parallel)
+
+### Track A: Accuracy to 95%+ (Days 1-2)
+
+| Step | Action | Time | Expected |
+|------|--------|------|----------|
+| A1 | d_model=256 with best config | 2 hr | +1-2% |
+| A2 | Add dropout=0.1 | 30 min | +0.5% |
+| A3 | β annealing (0.3→0.1) | 1 hr | +0.5% |
+| A4 | Add L=2 blocks | 3 hr | +1% |
+| A5 | 5-seed validation | 4 hr | Mean ≥95% |
 
 ```bash
-# Target: unified interface
-python train.py --dataset mnist    # baseline
-python train.py --dataset cifar10  # scaling
-python train.py --dataset sst2     # text
+python train.py --d-model 256 --n-heads 8 --d-ff 1024 \
+    --beta 0.2 --damping 0.8 --lr 0.002 --epochs 10 --compile
 ```
 
-| Dataset | New Code | Baseline | EqProp Target |
-|---------|----------|----------|---------------|
-| MNIST | — | 97.2% | 95%+ |
-| CIFAR-10 | Patch embed | ~68% | 63%+ |
-| SST-2 | Tokenizer | ~82% | 77%+ |
+### Track B: O(1) Memory Demo (Days 2-3)
 
-**Leverage**: Same training loop, just swap data loader + embedding.
+| Step | Action | Time | Expected |
+|------|--------|------|----------|
+| B1 | Activate full LocalHebbianUpdate | 2 hr | Bypass autodiff |
+| B2 | Profile d_model={256,512,1024,2048} | 1 hr | <0.5× BP ratio |
+| B3 | "Impossible demo" | 1 hr | d_model=2048 trains |
+| B4 | Memory scaling plot | 30 min | Paper figure |
+
+### Track C: Adaptive Compute Analysis (Days 3-4)
+
+| Step | Action | Time | Expected |
+|------|--------|------|----------|
+| C1 | Log per-sample iterations | 1 hr | Data collection |
+| C2 | Correlate iters vs margin | 1 hr | Strong correlation |
+| C3 | Iterations per digit class | 1 hr | 4,9 harder |
+| C4 | Early exit analysis | 2 hr | 30-50% compute savings |
+| C5 | Visualize h_t trajectory | 2 hr | "Thinking" dynamics |
+
+### Track D: Scaling (Days 4-5)
+
+| Step | Action | Time | Expected |
+|------|--------|------|----------|
+| D1 | CIFAR-10 patch embedding | 2 hr | Implementation |
+| D2 | CIFAR-10 training | 4 hr | >65% accuracy |
+| D3 | SST-2 text (optional) | 4 hr | >77% accuracy |
+| D4 | Algorithmic reasoning | 3 hr | Parity/addition |
+
+### Track E: Algorithmic & Structured Tasks (Days 5-6)
+
+| Task | Description | Why EqProp Excels |
+|------|-------------|-------------------|
+| **Parity** | XOR of N bits | Requires N sequential ops |
+| **Addition** | Add N-digit numbers | Carry propagation iterative |
+| **Copying** | Repeat sequence | Tests equilibrium memory |
+| **Sorting** | Sort N numbers | Comparison chains |
+
+**Hypothesis**: Equilibrium iteration count correlates with problem structure.
 
 ---
 
-## Phase 3: Analysis Artifacts (Paper Figures)
+## Theoretical Explorations
 
-| Figure | Script | Data Needed | Est. Time |
-|--------|--------|-------------|-----------|
-| Memory scaling curve | `plot_memory.py` | B2 profile data | 30 min |
-| β→0 gradient equiv | `plot_beta_sweep.py` | Already have | 30 min |
-| Iterations vs difficulty | `analyze_iters.py` | Log per-sample | 2 hr |
-| Training curves (3 datasets) | Wandb export | Phase 2 runs | Auto |
+### Energy Landscape Analysis
+- Visualize loss surface at equilibrium
+- Characterize basins of attraction
+- Compare to DEQ (Deep Equilibrium Models)
 
-**Leverage**: Most figures auto-generate from existing/planned runs.
+### Convergence Conditions
+- When does equilibrium exist and is unique?
+- Spectral properties of Jacobian
+- Stability guarantees for attention
 
----
-
-## Phase 4: Convergence Speed (If Needed)
-
-Only pursue if iterations >30 average:
-
-| Technique | ROI | Implement If... |
-|-----------|-----|-----------------|
-| Anderson acceleration | High | Avg iters >30 |
-| Learned init | Medium | Marginal improvement from Anderson |
-| Spectral norm | Low | Convergence unstable |
+### Implicit Differentiation Connection
+- Relate EqProp to phantom gradients (DEQ)
+- Unify local and global gradient methods
+- Theoretical bounds on approximation
 
 ---
 
-## 🎯 Revised Priority Stack
+## Maximum Impact Paper Structure
 
+### Option 1: Unified Story
+"TorEqProp: Training Transformers via Equilibrium Propagation"
+- Gradient equivalence + 95% accuracy + adaptive compute + biological plausibility
+
+### Option 2: Systems Focus  
+"O(1) Memory Training for Transformers via Local Hebbian Learning"
+- Memory profiling + large model demo + neuromorphic potential
+
+### Option 3: Theory Focus
+"On Gradient Equivalence in Equilibrium Attention Mechanisms"  
+- β→0 limit + non-symmetric discovery + convergence analysis
+
+### Option 4: Adaptive Compute
+"Implicit Depth: How Equilibrium Transformers Allocate Compute"
+- Iteration dynamics + difficulty correlation + early exit
+
+---
+
+## Experimental Priorities (Ranked)
+
+### Tier 1: Publication-Ready
+1. **95%+ accuracy** — validates approach works
+2. **Gradient equivalence plot** — theoretical justification
+3. **Adaptive compute analysis** — novel contribution
+4. **5-seed validation** — statistical rigor
+
+### Tier 2: Strengthens Paper
+5. **O(1) memory demo** — hardware implications
+6. **CIFAR-10 scaling** — generalization
+7. **DEQ comparison** — positions in literature
+8. **Convergence analysis** — iterations/sample
+
+### Tier 3: Stretch Goals
+9. **SST-2 text** — modality transfer
+10. **Algorithmic reasoning** — structure discovery
+11. **Neuromorphic simulation** — hardware direction
+12. **Equilibrium VAE** — generative extension
+
+---
+
+## Best Configuration
+
+```yaml
+# Optimal hyperparameters from 27-config sweep
+beta: 0.2        # Higher than theory suggests — key finding
+damping: 0.8     # Lower = faster equilibrium
+lr: 0.002        # EqProp stable with aggressive LR
+d_model: 128     # Baseline; test 256 for accuracy push
+n_heads: 4       # 8 for larger model
+d_ff: 512        # 4× d_model
+attention: linear
+symmetric: false  # Non-symmetric works!
 ```
-MUST (blocks publication):
-  1. LocalHebbianUpdate → O(1) memory claim     [4 hr]
-  2. Memory profile chart                        [1 hr]
-  3. Best config → 95% MNIST                     [4 hr]
-
-SHOULD (strengthens paper):
-  4. CIFAR-10 scaling                            [3 hr]
-  5. Iterations vs difficulty analysis           [2 hr]
-  6. DEQ comparison table                        [3 hr]
-
-COULD (stretch):
-  7. SST-2 text classification                   [4 hr]
-  8. Algorithmic reasoning (parity/addition)     [4 hr]
-  9. Neuromorphic simulation                     [?]
-```
 
 ---
 
-## Quick Wins Queue
-
-Things that take <1 hour but improve everything:
-
-- [ ] Add `--compile` flag → 20% faster
-- [ ] Log iterations per sample → enables Phase 3 analysis
-- [ ] Export best config to `configs/best.yaml`
-- [ ] Add `--seed` flag with multiple seeds for error bars
-- [ ] Gradient clipping experiment (quick accuracy boost?)
-- [ ] β scheduler: start 0.2 → anneal to 0.05
-- [ ] Label smoothing (regularization)
-
----
-
-## 🔀 Parallelization Strategy
-
-Run simultaneously on different GPUs/sessions:
-
-| Session | Task | Duration |
-|---------|------|----------|
-| GPU 0 | Hyperparam sweep (running) | ~3 hr |
-| GPU 1 | LocalHebbianUpdate dev | 4 hr |
-| CPU | Write train_cifar.py skeleton | 1 hr |
-| CPU | Setup wandb + config dataclass | 1 hr |
-
----
-
-## Decision Points
-
-| Day | Check | Go | Pivot |
-|-----|-------|----|----- |
-| +1 | Sweep done | Best >93.5% | More tuning |
-| +2 | LocalHebbian works | Memory <0.7× | Debug |
-| +3 | CIFAR-10 baseline | >60% | Adjust arch |
-| +5 | Paper outline | Clear story | Reframe claims |
-
----
-
-## Pivot Playbook
-
-| Failure | Response |
-|---------|----------|
-| Memory still 1×+ | Check: are we storing h history? Use checkpointing? |
-| Accuracy stuck 92-93% | Try: dropout, LN placement, MLP ratio |
-| CIFAR-10 fails | Simplify: focus MNIST + memory story |
-| Convergence slow | Add: Anderson accel (2-day detour) |
-
----
-
-## Future (Post-Publication)
-
-### High-Yield Extensions
-- Spiking EqProp → neuromorphic hardware
-- Equilibrium VAE → generative modeling
-- RL with equilibrium value function
-- Theoretical: convergence bounds, expressiveness
-
-### Quick Experiments (1-2 days)
-- β annealing schedule
-- Momentum in equilibrium (Polyak)
-- Multi-scale loss at intermediate h
-- Noise injection for robustness
-
----
-
-## Commands
+## Quick Commands
 
 ```bash
-# Validation
-python test_gradient_equiv.py
-python train_mnist.py
+# Best config with larger model
+python train.py --d-model 256 --n-heads 8 --d-ff 1024 \
+    --beta 0.2 --damping 0.8 --lr 0.002 --epochs 10 --compile
+
+# Multi-seed validation
+for s in 1 2 3 4 5; do
+    python train.py --d-model 256 --beta 0.2 --damping 0.8 --lr 0.002 \
+        --epochs 10 --seed $s --compile 2>&1 | tee seed_${s}.log
+done
+
+# Memory profiling
 python profile_memory.py
 
-# Sweeps
-python hyperparam_sweep.py        # Running now
+# Gradient equivalence
+python test_gradient_equiv.py
 
-# To implement
-python train.py --dataset cifar10
-python train.py --local-update    # O(1) memory mode
-python plot_figures.py            # Generate paper figures
+# CIFAR-10 (once implemented)
+python train.py --dataset cifar10 --d-model 256 --epochs 50
 ```
 
 ---
 
-## Next Actions (Today)
+## Fallback Strategies
 
-1. **[NOW]** Let sweep finish → extract best config
-2. **[PARALLEL]** Implement `LocalHebbianUpdate` skeleton
-3. **[PARALLEL]** Add torch.compile + wandb to train_mnist.py
-4. **[AFTER SWEEP]** Validate best config × 5 seeds
-5. **[AFTER B1]** Profile memory with local update
-6. **[THEN]** Create unified train.py for multi-dataset
+| If... | Then... | Still Publishable? |
+|-------|---------|-------------------|
+| 95% unreachable | Focus 94% + adaptive compute | ✅ Yes |
+| O(1) memory hard | Position as "towards O(1)" | ✅ Yes |
+| CIFAR-10 fails | MNIST + algorithmic tasks | ✅ Yes |
+| Adaptive compute weak | Emphasize bio-plausibility | ✅ Yes |
+| All fails | Negative result paper | ✅ Yes (rare) |
+
+---
+
+## Timeline
+
+| Day | Focus | Deliverable |
+|-----|-------|-------------|
+| 1 | Accuracy push | d_model=256 → 95%+ |
+| 2 | O(1) memory | LocalHebbianUpdate demo |
+| 3 | Adaptive compute | Per-sample iteration analysis |
+| 4 | Multi-seed + CIFAR | Validation + scaling |
+| 5 | Analysis | All figures generated |
+| 6 | Paper draft | Submission-ready manuscript |
+
+---
+
+## Success Definition
+
+**Minimum Publishable Result** (any ONE of):
+- 95%+ accuracy with gradient equivalence
+- O(1) memory demonstrated at scale
+- Adaptive compute correlation proven
+- Novel β>0 insight explained
+
+**Maximum Result** (all of):
+- 95%+ MNIST, 65%+ CIFAR-10
+- O(1) memory with d_model=2048
+- Adaptive compute quantified
+- Theoretical analysis included
+- DEQ comparison table
+
+---
+
+## Open Questions (Research Directions)
+
+1. Why does higher β work better in practice?
+2. Can we derive optimal β theoretically?
+3. What's the relationship between iterations and sample difficulty?
+4. Can EqProp discover algorithmic structure?
+5. How does equilibrium attention differ from standard attention in function space?
+6. Is there a principled way to set max_iters adaptively?
+7. What architectural modifications guarantee convergence?
