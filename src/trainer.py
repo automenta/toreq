@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torch import Tensor
 from typing import Dict, Callable
 from .solver import EquilibriumSolver
-from .updates import UpdateStrategy, MSEProxyUpdate, VectorFieldUpdate
+from .updates import UpdateStrategy, MSEProxyUpdate, VectorFieldUpdate, LocalHebbianUpdate
 
 
 class EqPropTrainer:
@@ -58,10 +58,12 @@ class EqPropTrainer:
             return MSEProxyUpdate(beta)
         elif update_mode == 'vector_field':
             return VectorFieldUpdate(beta)
+        elif update_mode == 'local_hebbian':
+            return LocalHebbianUpdate(beta)
         else:
             raise ValueError(
                 f"Unknown update_mode '{update_mode}'. "
-                f"Must be 'mse_proxy' or 'vector_field'"
+                f"Must be 'mse_proxy', 'vector_field', or 'local_hebbian'"
             )
     
     def train_step(self, x: Tensor, y: Tensor) -> Dict[str, float]:
