@@ -12,26 +12,33 @@ import gc
 
 def profile_eqprop(config, x, y, model, embedding, output_head, solver):
     """Profile memory for EqProp training step."""
-    torch.cuda.reset_peak_memory_stats()
-    torch.cuda.synchronize()
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
+        torch.cuda.synchronize()
     
-    trainer = EqPropTrainer(model, solver, output_head, beta=config["beta"], lr=config["lr"])
+    # Use local update if specified
+    update_mode = config.get("update_mode", "mse_proxy")
+    trainer = EqPropTrainer(model, solver, output_head, beta=config["beta"], lr=config["lr"], update_mode=update_mode)
     trainer.optimizer.add_param_group({'params': embedding.parameters()})
     
     # Warm-up
     x_emb = embedding(x).unsqueeze(0)
     _ = trainer.train_step(x_emb, y)
     
-    torch.cuda.synchronize()
-    peak_memory = torch.cuda.max_memory_allocated() / (1024**2)  # MB
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+        peak_memory = torch.cuda.max_memory_allocated() / (1024**2)  # MB
+    else:
+        peak_memory = 0.0 # Placeholder
     
     return peak_memory
 
 
 def profile_bp(config, x, y, model, embedding, output_head, solver):
     """Profile memory for BP training step."""
-    torch.cuda.reset_peak_memory_stats()
-    torch.cuda.synchronize()
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
+        torch.cuda.synchronize()
     
     optimizer = torch.optim.Adam(
         list(embedding.parameters()) + list(model.parameters()) + list(output_head.parameters()),
@@ -48,18 +55,18 @@ def profile_bp(config, x, y, model, embedding, output_head, solver):
     loss.backward()
     optimizer.step()
     
-    torch.cuda.synchronize()
-    peak_memory = torch.cuda.max_memory_allocated() / (1024**2)  # MB
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+        peak_memory = torch.cuda.max_memory_allocated() / (1024**2)  # MB
+    else:
+        peak_memory = 0.0
     
     return peak_memory
 
 
 def run_profiling():
-    if not torch.cuda.is_available():
-        print("CUDA not available. Memory profiling requires GPU.")
-        return
-    
-    device = "cuda"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Running on {device}")
     
     # Load a batch of real data
     transform = transforms.Compose([
@@ -111,11 +118,11 @@ def run_profiling():
         x, y = x.to(device), y.to(device)
         
         # Profile EqProp
-        torch.cuda.empty_cache()
+        if torch.cuda.is_available(): torch.cuda.empty_cache()
         eqprop_mem = profile_eqprop(config, x, y, model, embedding, output_head, solver)
         
         # Recreate models for fair comparison
-        torch.cuda.empty_cache()
+        if torch.cuda.is_available(): torch.cuda.empty_cache()
         gc.collect()
         
         embedding = nn.Linear(784, config["d_model"]).to(device)
