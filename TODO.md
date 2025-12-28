@@ -247,6 +247,54 @@ Stretch:
 
 ---
 
+## Future Experiments (Low-Priority, High-Yield)
+
+> Ideas to revisit after core claims are validated.
+
+### 🧬 Biological Plausibility Extensions
+- **Spiking transformers**: Replace continuous activations with spike-based encoding
+- **STDP-compatible timing**: Add temporal delays to match spike-timing-dependent plasticity
+- **Noisy equilibrium**: Add noise during settling → robustness to biological noise
+- **Asymmetric feedback**: Test if approximate weight transport works (Lillicrap et al.)
+
+### 🔧 Hardware & Efficiency
+- **Loihi/SpiNNaker simulation**: Port forward pass to neuromorphic hardware
+- **Quantized EqProp**: 4-bit/8-bit weights during equilibrium → edge deployment
+- **Parallel relaxation**: Batch-level parallelism in equilibrium solver
+- **Mixed-precision equilibrium**: FP16 forward, FP32 accumulation
+
+### 📊 Scientific Analysis
+- **Energy landscape visualization**: Plot E(h) during training, observe valley formation
+- **Jacobian spectral analysis**: Track ρ(J_f) across training → stability dynamics
+- **Phase transition detection**: When does equilibrium "click"? Sharp vs. gradual
+- **Information flow analysis**: Mutual information between layers during settling
+
+### 🏗️ Architectural Innovations
+- **Hierarchical toroids**: Different timescales for different layers (fast/slow)
+- **Sparse attention equilibrium**: Top-k attention during settling → faster convergence
+- **Cross-modal equilibrium**: Vision-language with shared equilibrium state
+- **Continuous-depth**: Treat iterations as continuous time → Neural ODE hybrid
+
+### 🎮 Novel Domains
+- **Reinforcement learning**: EqProp for actor/critic with equilibrium state as value
+- **Generative modeling**: Equilibrium VAE/diffusion hybrid
+- **Continual learning**: Equilibrium as associative memory → catastrophic forgetting?
+- **Meta-learning**: Learn equilibrium dynamics (MAML-style)
+
+### 🔬 Theoretical Deep Dives
+- **Convergence rate bounds**: Prove O(log 1/ε) under specific conditions
+- **Expressiveness analysis**: What functions can equilibrium compute that fixed-depth can't?
+- **Information bottleneck**: Is equilibrium finding a form of compression?
+- **Connection to predictive coding**: Formal equivalence proof?
+
+### 💡 Quick Wins (1-2 days each)
+- **Cosine annealing β**: Larger β early, smaller β late
+- **Momentum in equilibrium**: Polyak averaging of h states
+- **Multi-scale loss**: Intermediate equilibrium checkpoints
+- **Data augmentation ablation**: How robust is EqProp to augmentation?
+
+---
+
 ## Next Actions (Prioritized)
 
 1. **[NOW]** Complete hyperparam sweep → find best config
