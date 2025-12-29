@@ -284,10 +284,14 @@ def filter_experiments(
             new_config = exp.config.copy()
             new_config["name"] = exp.name + " [SMOKE]"
             
-            # Minimal model dimensions
-            new_config["d_model"] = 32
-            new_config["n_heads"] = 2
-            new_config["d_ff"] = 64
+            # Minimal model dimensions (except for memory profiling where we test different sizes)
+            exp_type = new_config.get("type", "")
+            if exp_type != "memory":
+                # Only override d_model for non-memory experiments
+                new_config["d_model"] = 32
+                new_config["n_heads"] = 2
+                new_config["d_ff"] = 64
+            
             new_config["max_iters"] = 5
             
             # Minimal training

@@ -18,6 +18,8 @@ import json
 import time
 import subprocess
 import sys
+import os
+import re
 
 
 # ============================================================================
@@ -342,22 +344,31 @@ class MemoryExtractor(MetricExtractor):
         metrics = {}
         insights = []
         
+        # Look for table row: d_model batch eqprop bp ratio
+        # Example:       32     32         18.6         18.1     1.03x
+        dataset_regex = re.compile(r'\s*\d+\s+\d+\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)x')
+        
         lines = output.strip().split("\n")
         
         for line in lines:
-            if "Memory Ratio:" in line or "EqProp/BP:" in line:
+            match = dataset_regex.search(line)
+            if match:
                 try:
-                    parts = line.split(":")[-1]
-                    value = float(parts.strip().split()[0].replace("x", ""))
-                    metrics["memory_ratio"] = value
+                    eqprop_mem = float(match.group(1))
+                    bp_mem = float(match.group(2))
+                    ratio = float(match.group(3))
                     
-                    if value < 0.5:
+                    metrics["memory_eqprop_mb"] = eqprop_mem
+                    metrics["memory_bp_mb"] = bp_mem
+                    metrics["memory_ratio"] = ratio
+                    
+                    if ratio < 0.5:
                         insights.append("Clear O(1) advantage!")
-                    elif value < 1.0:
+                    elif ratio < 1.0:
                         insights.append("Memory advantage present")
                     else:
                         insights.append("No memory advantage at this scale")
-                    break
+                    break 
                 except (ValueError, IndexError):
                     continue
         
@@ -483,9 +494,15 @@ class ClassificationExperiment(Experiment):
             if param in self.config:
                 cmd += f" --{param.replace('_', '-')} {self.config[param]}"
         
-        # Add any extra args
+        # Add any extra args (handle boolean flags correctly)
         for key, value in self.config.get("extra_args", {}).items():
-            cmd += f" --{key.replace('_', '-')} {value}"
+            flag_name = key.replace('_', '-')
+            if isinstance(value, bool):
+                if value:  # Only add flag if True
+                    cmd += f" --{flag_name}"
+                # Skip if False
+            else:
+                cmd += f" --{flag_name} {value}"
         
         return cmd
     
@@ -597,6 +614,9 @@ class MemoryProfilingExperiment(Experiment):
         return self.config.get("expected_time_min", 10)
     
     def build_command(self) -> str:
+        # For memory profiling, we want to test the ACTUAL d_model specified, not smoke test override
+        # So we use config's d_model but it should be the original value, not smoke test's 32
+        # The smoke test filter should not override d_model for memory experiments
         d_model = self.config.get("d_model", 256)
         max_iters = self.config.get("max_iters", 100)
         
