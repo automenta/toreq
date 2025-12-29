@@ -46,15 +46,16 @@ Train transformers via Equilibrium Propagation (EqProp), demonstrating gradient 
 
 ## Experiment Infrastructure
 
-### Files Created
+### Core Files
 | File | Purpose |
 |------|---------|
 | `run_discovery.py` | **Main orchestrator** - runs all experiments with tracking |
+| `src/experiment_framework.py` | **Modular framework** - abstract classes, registry, builders |
+| `configs/experiments.yaml` | **Configuration** - define experiments in YAML |
 | `train_algorithmic.py` | Algorithmic reasoning tasks (parity, addition, etc.) |
 | `train_rl.py` | Reinforcement learning with EqProp |
 | `src/datasets.py` | Multi-dataset loader (MNIST, Fashion, CIFAR-10, SVHN, EMNIST) |
 | `src/algorithmic_tasks.py` | Task generators for parity, reversal, copy, addition |
-| `configs/rapid_mode.yaml` | Fast experimentation defaults |
 
 ### Rapid Mode (`--rapid` flag)
 ```yaml
@@ -63,6 +64,89 @@ epochs: 3         # 10× fewer
 max_iters: 20     # Faster convergence
 ```
 **Time:** ~5-10 min per experiment
+
+### Advanced Usage
+```bash
+# Use custom experiment config
+python run_discovery.py --config configs/experiments.yaml
+
+# Filter by category
+python run_discovery.py --category classification rl
+
+# Filter by priority
+python run_discovery.py --priority HIGH
+
+# List registered experiment types
+python run_discovery.py --list-types
+
+# List configured experiments
+python run_discovery.py --list-experiments
+```
+
+### Extensibility: Adding New Experiment Types
+
+The framework uses abstract classes and a registry pattern for extensibility.
+
+**1. Create a new experiment class** in `src/experiment_framework.py`:
+```python
+class MyNewExperiment(Experiment):
+    @property
+    def category(self) -> str:
+        return "my_category"
+    
+    @property
+    def priority(self) -> str:
+        return self.config.get("priority", "MEDIUM")
+    
+    @property
+    def expected_duration_min(self) -> float:
+        return self.config.get("expected_time_min", 10)
+    
+    def build_command(self) -> str:
+        arg = self.config.get("my_arg", "default")
+        return f"python my_script.py --arg {arg}"
+    
+    def get_metric_extractor(self) -> MetricExtractor:
+        return AccuracyExtractor()  # Or create custom
+    
+    def get_success_criteria(self) -> Tuple[str, float]:
+        threshold = self.config.get("success_threshold", 0.5)
+        return ("test_accuracy", threshold)
+```
+
+**2. Register the experiment type:**
+```python
+ExperimentRegistry.register_experiment("my_type", MyNewExperiment)
+```
+
+**3. Use in YAML configuration:**
+```yaml
+experiments:
+  - name: My Custom Experiment
+    type: my_type
+    my_arg: custom_value
+    success_threshold: 0.75
+    priority: HIGH
+```
+
+### Extensibility: Adding New Metric Extractors
+
+```python
+class MyMetricExtractor(MetricExtractor):
+    def extract(self, output: str) -> Tuple[Dict[str, float], List[str]]:
+        metrics = {}
+        insights = []
+        
+        # Parse output for your metrics
+        for line in output.split("\n"):
+            if "MyMetric:" in line:
+                metrics["my_metric"] = float(line.split(":")[-1])
+        
+        return metrics, insights
+
+# Register
+ExperimentRegistry.register_extractor("my_metric", MyMetricExtractor)
+```
 
 ---
 
@@ -301,24 +385,26 @@ EqProp: Memory = O(1) (only current state)
 
 ```
 toreq/
-├── TODO.md                    # THIS FILE (single source of truth)
-├── run_discovery.py           # 🔑 Main experiment orchestrator
-├── train.py                   # Classification training
-├── train_algorithmic.py       # Algorithmic tasks training
-├── train_rl.py                # RL training
+├── TODO.md                      # THIS FILE (single source of truth)
+├── run_discovery.py             # 🔑 Main experiment orchestrator
+├── train.py                     # Classification training
+├── train_algorithmic.py         # Algorithmic tasks training
+├── train_rl.py                  # RL training
 ├── src/
-│   ├── datasets.py            # Multi-dataset loader
-│   ├── algorithmic_tasks.py   # Task generators
-│   ├── config.py              # Config with --rapid flag
-│   ├── models.py              # LoopedTransformerBlock
-│   ├── solver.py              # EquilibriumSolver
-│   ├── trainer.py             # EqPropTrainer
-│   └── updates.py             # Update strategies
+│   ├── experiment_framework.py  # 🔑 Modular framework (abstract classes, registry)
+│   ├── datasets.py              # Multi-dataset loader
+│   ├── algorithmic_tasks.py     # Task generators
+│   ├── config.py                # Config with --rapid flag
+│   ├── models.py                # LoopedTransformerBlock
+│   ├── solver.py                # EquilibriumSolver
+│   ├── trainer.py               # EqPropTrainer
+│   └── updates.py               # Update strategies
 ├── configs/
-│   └── rapid_mode.yaml        # Fast experimentation defaults
+│   ├── rapid_mode.yaml          # Fast experimentation defaults
+│   └── experiments.yaml         # 🔑 Experiment definitions (YAML)
 ├── logs/
-│   └── discovery/             # Experiment results
-└── docs/                      # Reference documentation only
+│   └── discovery/               # Experiment results
+└── docs/                        # Reference documentation only
 ```
 
 ---
