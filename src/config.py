@@ -4,6 +4,9 @@ from dataclasses import dataclass, field, asdict
 from typing import Optional
 import argparse
 import torch
+from pathlib import Path
+import yaml
+
 
 
 @dataclass
@@ -39,6 +42,7 @@ class TorEqPropConfig:
     # Performance
     compile: bool = False  # Use torch.compile
     seed: int = -1  # Random seed for reproducibility (-1 = no seed)
+    rapid: bool = False  # Use rapid experimentation mode (loads configs/rapid_mode.yaml)
     
     # Logging
     wandb: bool = False
@@ -101,7 +105,23 @@ class TorEqPropConfig:
                 )
         
         args = parser.parse_args()
-        return cls(**vars(args))
+        config_dict = vars(args)
+        
+        # If rapid mode, load defaults from rapid_mode.yaml first
+        if config_dict.get('rapid', False):
+            rapid_config_path = Path(__file__).parent.parent / "configs" / "rapid_mode.yaml"
+            if rapid_config_path.exists():
+                with open(rapid_config_path) as f:
+                    rapid_defaults = yaml.safe_load(f)
+                # Apply rapid defaults, but CLI args override
+                for key, value in rapid_defaults.items():
+                    if key in config_dict:
+                        # Only override if user didn't explicitly set a different value
+                        # (argparse doesn't distinguish "didn't pass" from "passed default")
+                        config_dict[key] = value
+                print(f"[Rapid Mode] Loaded config from {rapid_config_path}")
+        
+        return cls(**config_dict)
     
     def __post_init__(self):
         """Validate configuration."""

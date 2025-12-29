@@ -15,41 +15,12 @@ from src.trainer import EqPropTrainer
 
 def get_data_loaders(config: TorEqPropConfig):
     """Create data loaders based on dataset name."""
-    if config.dataset == "mnist":
-        transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Lambda(lambda x: x.view(784))
-        ])
-        train_dataset = datasets.MNIST('./data', train=True, download=True, transform=transform)
-        test_dataset = datasets.MNIST('./data', train=False, transform=transform)
-        input_dim = 784
-        num_classes = 10
-        
-    elif config.dataset == "cifar10":
-        # TODO: implement CIFAR-10 with patch embeddings
-        raise NotImplementedError("CIFAR-10 support coming soon")
-        
-    elif config.dataset == "sst2":
-        # TODO: implement SST-2 with tokenizer
-        raise NotImplementedError("SST-2 support coming soon")
-        
-    else:
-        raise ValueError(f"Unknown dataset: {config.dataset}")
-    
-    train_loader = DataLoader(
-        train_dataset, 
-        batch_size=config.batch_size, 
-        shuffle=True,
+    from src.datasets import get_data_loaders as _get_loaders
+    return _get_loaders(
+        config.dataset,
+        batch_size=config.batch_size,
         num_workers=config.num_workers
     )
-    test_loader = DataLoader(
-        test_dataset, 
-        batch_size=config.batch_size, 
-        shuffle=False,
-        num_workers=config.num_workers
-    )
-    
-    return train_loader, test_loader, input_dim, num_classes
 
 
 def create_model(config: TorEqPropConfig, input_dim: int, num_classes: int):
