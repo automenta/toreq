@@ -1,7 +1,8 @@
 # Toroidal Equilibrium Propagation for Transformers (TorEqProp)
 
-> **Status**: 🧪 Validated — Gradient equivalence verified, 94% MNIST accuracy achieved  
-> **Version**: 0.4.0  
+> **Status**: 🎯 β-Stability Validated — 92.09% MNIST accuracy, β≥0.23 stability confirmed  
+> **Version**: 0.5.0  
+> **Updated**: 2025-12-28  
 > **Target**: ICML/NeurIPS 2025 submission
 
 ---
@@ -13,10 +14,11 @@
 | Claim | Status | Result |
 |-------|--------|--------|
 | Gradient equivalence | ✅ **Verified** | 0.9972 cosine sim at β=0.001 |
-| Competitive accuracy | ✅ **92.11%** | d=256, dropout=0.1, β-anneal |
-| O(1) memory training | ✅ **Activated** | Pure Hebbian updates implemented |
+| Competitive accuracy | ✅ **92.09%** | d=256, β=0.25 fixed, 15 epochs |
+| **β≥0.23 stability** 🆕 | ✅ **Validated** | Stable at 0.25, collapses at ≤0.2 |
+| Fast inference | ✅ **10 iterations** | Uniform convergence, predictable cost |
+| O(1) memory training | ⚠️ **Partial** | 1.06× BP (LocalHebbianUpdate needs verification) |
 | Biological plausibility | ✅ **Validated** | Contrastive Hebbian learning works |
-| **β=0.25 optimal** | ✅ **Discovered** | Training collapses at β=0.2 |
 
 ---
 
@@ -68,11 +70,12 @@ python train.py --d-model 256 --n-heads 8 --d-ff 1024 \
 
 ## Key Discoveries
 
-1. **First transformer trained via EqProp** — 92.11% MNIST accuracy
-2. **Gradient equivalence verified** — 0.9972 cosine similarity  
-3. **β=0.25 optimal** — Contradicts theory (β→0); practice requires β≥0.23
-4. **Non-symmetric mode works** — Symmetric constraints not required
-5. **O(1) memory ready** — Pure Hebbian updates implemented
+1. **First transformer trained via EqProp** — 92.09% MNIST accuracy (validated 2025-12-28)
+2. **Gradient equivalence verified** — 0.9972 cosine similarity at β=0.001
+3. **β≥0.23 stability threshold** — Novel finding: training collapses at β≤0.2, stable at β=0.25
+4. **Theory-practice gap** — EqProp theory suggests β→0, practice requires β>0 for stability
+5. **Fast, uniform inference** — All samples converge in 10 iterations (predictable compute)
+6. **Non-symmetric mode works** — Symmetric constraints not required for practical training
 
 See [Results](docs/05-results.md) for full details.
 
