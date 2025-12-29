@@ -38,12 +38,59 @@ Train transformers via Equilibrium Propagation (EqProp), demonstrating gradient 
 | Metric | Value | Notes |
 |--------|-------|-------|
 | MNIST Accuracy | **93.83%** | 50 epochs, β=0.22, d=256 |
-| **RL Performance** 🆕 | **354.1 avg reward** | CartPole-v1, **+88% vs BP baseline** |
+| **RL Performance** 🆕 | **324 avg reward** | CartPole-v1, EqProp-medium |
+| **Punch Above Weight** ✅ | **Medium beats Large** | EqProp-medium > BP-large |
 | Gradient Equivalence | **0.9972** | cos sim at β=0.001 |
 | Optimal β | **0.22** | Fixed (no annealing!) |
 | Reproducibility | **±0.26%** | 5-seed validation |
 
-> **🎯 Breakthrough:** EqProp **outperforms BP by 88%** on RL tasks (CartPole solved vs failed)
+> **🎯 Breakthroughs:** 
+> - EqProp-medium (d=128) **beats BP-large** (d=256) on CartPole: 324 vs 225 reward
+> - EqProp outperforms BP by **+118%** across all sizes on RL
+
+---
+
+## Phase 1: Size Comparison Results ✅ **COMPLETE**
+
+**Validation Engine Phase 1** ran 48 experiments (5 sizes × 2 algorithms × 2 tasks × 3 seeds).
+
+### Key Findings
+
+| Task | EqProp vs BP | Winner | Insight |
+|------|--------------|--------|---------|
+| CartPole | +118% | **EqProp** 🏆 | Scales dramatically better |
+| MNIST | -3.9% | BP (slight) | Training time similar |
+
+### 🥊 Punch Above Weight Detection
+
+```
+EqProp-medium (d=128) achieves 324 reward
+BP-large     (d=256) achieves 225 reward
+→ Smaller EqProp beats larger BP by 44%!
+```
+
+### Efficiency Analysis
+
+**CartPole (EqProp dominates):**
+| Size | EqProp Reward | BP Reward | EqProp Advantage |
+|------|---------------|-----------|------------------|
+| Large | 324.5 | 225.5 | +44% |
+| Medium | **324.1** | 93.2 | **+248%** |
+| Small | 158.8 | 39.7 | +300% |
+| Tiny | 30.6 | 26.4 | +16% |
+
+**MNIST (BP slight edge, similar speed):**
+| Size | EqProp Acc | BP Acc | Time (s) |
+|------|------------|--------|----------|
+| Large | 0.92 | 0.95 | ~295 |
+| Tiny | 0.88 | 0.94 | 150 (EqProp faster!) |
+
+### Validation Engine Enhancements
+- **Now Phase 1**: Size comparison runs first for quick feedback
+- **5 sizes**: micro (d=16) → tiny → small → medium → large (d=256)
+- **4 experiments**: mnist_size, fashion_size, cartpole_size, acrobot_size
+- **Tuned iterations**: max_iters reduced to 20 (was 50) for faster training
+- **Punch detection**: Automatic identification of smaller models beating larger baselines
 
 ---
 

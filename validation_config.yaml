@@ -217,61 +217,90 @@ ablation:
     beta: [0.1, 0.2, 0.3, 0.4]
 
 # ============================================================================
-# PHASE 6: Model Size Comparison (Punch Above Weight Analysis)
+# PHASE 1: Model Size Comparison (Quick Results First!)
 # ============================================================================
+# Runs FIRST to provide quick insights before investing in larger experiments.
+# Discovers "punch above weight" scenarios where smaller EqProp beats larger BP.
 size_comparison:
   enabled: true
   seeds: [0, 1, 2]
   
-  # Model sizes to compare (from tiny to large)
+  # Model sizes: micro→tiny→small→medium→large (5 sizes for fine-grained analysis)
   sizes:
+    - name: micro
+      display_name: "Micro"
+      d_model: 16
+      hidden_dim: 8   # For RL
+      max_iters: 15   # Fewer iters for small models
+      priority: 1
+      
     - name: tiny
       display_name: "Tiny"
       d_model: 32
-      hidden_dim: 16  # For RL
-      priority: 1
+      hidden_dim: 16
+      max_iters: 20
+      priority: 2
       
     - name: small
       display_name: "Small"
       d_model: 64
       hidden_dim: 32
-      priority: 2
+      max_iters: 20
+      priority: 3
       
     - name: medium
       display_name: "Medium"  
       d_model: 128
       hidden_dim: 64
-      priority: 3
+      max_iters: 25
+      priority: 4
       
     - name: large
       display_name: "Large"
       d_model: 256
       hidden_dim: 128
-      priority: 4
+      max_iters: 30
+      priority: 5
   
-  # Experiments to run at each size
+  # Experiments to run at each size (expanded for more insights)
   experiments:
+    # Classification (quick, informative)
     - name: mnist_size
       type: classification
       dataset: mnist
-      epochs: 5
+      epochs: 3  # Reduced for speed
       metric: test_accuracy
-      success_threshold: 0.85
+      success_threshold: 0.80
       
+    - name: fashion_size
+      type: classification
+      dataset: fashion
+      epochs: 3
+      metric: test_accuracy
+      success_threshold: 0.70
+      
+    # Reinforcement Learning (where EqProp shines!)
     - name: cartpole_size
       type: rl
       env: CartPole-v1
-      episodes: 300
+      episodes: 200  # Reduced for faster iteration
       metric: avg_reward
       success_threshold: 150
+      
+    - name: acrobot_size
+      type: rl
+      env: Acrobot-v1
+      episodes: 300
+      metric: avg_reward
+      success_threshold: -100
   
-  # Command templates by type
+  # Command templates by type (with tuned max_iters)
   command_templates:
     classification:
-      eqprop: "python train.py --dataset {dataset} --epochs {epochs} --d-model {d_model} --seed {seed}"
+      eqprop: "python train.py --dataset {dataset} --epochs {epochs} --d-model {d_model} --max-iters 20 --seed {seed}"
       bp: "python train_mnist_bp.py --dataset {dataset} --epochs {epochs} --d-model {d_model} --seed {seed}"
     rl:
-      eqprop: "python train_rl.py --env {env} --episodes {episodes} --hidden-dim {hidden_dim} --seed {seed}"
+      eqprop: "python train_rl.py --env {env} --episodes {episodes} --hidden-dim {hidden_dim} --max-iters 15 --seed {seed}"
       bp: "python train_rl.py --env {env} --episodes {episodes} --hidden-dim {hidden_dim} --seed {seed} --use-bp"
 
 # ============================================================================

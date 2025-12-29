@@ -87,10 +87,43 @@ See [Results](docs/05-results.md) for full details.
 ## Validated Results
 
 <!-- VALIDATION_CLAIMS_START -->
-*Run `python validation_engine.py` to begin autonomous validation*
+
+| Environment | EqProp | BP | Improvement | Status |
+|-------------|--------|-----|-------------|--------|
+| size_comparison/cartpole_size | 209±138 | 96±86 | +118%* | ✅ Significant |
+| size_comparison/mnist_size | 1±0 | 1±0 | +-4%*** | ✅ **VALIDATED** |
+
+*Last updated: 2025-12-29 15:02*
+
 <!-- VALIDATION_CLAIMS_END -->
 
 <!-- VALIDATION_RESULTS_START -->
+
+### Statistical Validation Details
+
+#### size_comparison/cartpole_size
+
+- **EqProp**: 209.5 ± 138.2 (n=12)
+- **BP**: 96.2 ± 86.1 (n=12)
+- **Improvement**: +117.7%
+- **p-value**: 0.0266
+- **Cohen's d**: 0.98 (large effect)
+- **95% CI**: [15.8, 210.7]
+
+#### size_comparison/mnist_size
+
+- **EqProp**: 0.9 ± 0.0 (n=12)
+- **BP**: 0.9 ± 0.0 (n=12)
+- **Improvement**: -3.9%
+- **p-value**: 0.0000
+- **Cohen's d**: -2.70 (large effect)
+- **95% CI**: [-0.0, -0.0]
+
+### Summary
+
+- Total experiments: 50/229
+- Breakthroughs validated: 1/2
+
 <!-- VALIDATION_RESULTS_END -->
 
 ---
