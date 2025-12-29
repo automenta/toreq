@@ -7,6 +7,8 @@
 #   multiseed    - Run 5-seed validation
 #   memory       - Profile memory at different scales  
 #   adaptive     - Analyze adaptive compute behavior
+#   beta_sweep   - Comprehensive β stability characterization
+#   beta_analyze - Analyze β sweep results and generate figures
 #   all          - Run all experiments
 
 set -e
@@ -114,6 +116,37 @@ run_gradient() {
     log "✅ Gradient verification complete. Results in logs/gradient_equiv.log"
 }
 
+# Experiment 5: β Stability Sweep
+run_beta_sweep() {
+    log "🔬 Running comprehensive β stability characterization..."
+    log "⚠️  WARNING: This will take 12-18 hours of GPU time"
+    
+    mkdir -p logs/beta_sweep
+    
+    python test_beta_stability.py \
+        --beta-min 0.20 \
+        --beta-max 0.26 \
+        --beta-step 0.01 \
+        --epochs 15 \
+        2>&1 | tee logs/beta_sweep/sweep.log
+    
+    log "✅ β stability sweep complete. Results in logs/beta_sweep/"
+}
+
+# Experiment 6: Analyze β Sweep Results
+run_beta_analyze() {
+    log "📊 Analyzing β sweep results..."
+    
+    if [ ! -f "logs/beta_sweep/results.json" ]; then
+        error "No results found. Run beta_sweep first!"
+        exit 1
+    fi
+    
+    python analyze_beta_sweep.py --results logs/beta_sweep/results.json
+    
+    log "✅ Analysis complete. Figures saved to logs/beta_sweep/"
+}
+
 # Create logs directory
 mkdir -p logs
 
@@ -134,6 +167,12 @@ case "${1:-all}" in
     gradient)
         run_gradient
         ;;
+    beta_sweep)
+        run_beta_sweep
+        ;;
+    beta_analyze)
+        run_beta_analyze
+        ;;
     all)
         log "🚀 Running all experiments..."
         run_accuracy
@@ -143,7 +182,7 @@ case "${1:-all}" in
         log "🎉 All experiments complete!"
         ;;
     *)
-        echo "Usage: $0 {accuracy|multiseed|memory|adaptive|gradient|all}"
+        echo "Usage: $0 {accuracy|multiseed|memory|adaptive|gradient|beta_sweep|beta_analyze|all}"
         exit 1
         ;;
 esac
