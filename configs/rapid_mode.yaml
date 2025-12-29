@@ -23,7 +23,7 @@ beta_anneal: false
 update_mode: mse_proxy
 
 # Performance
-compile: true
+compile: false  # Disabled for rapid feedback
 
 # Dataset default
 dataset: mnist

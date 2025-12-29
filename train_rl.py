@@ -37,7 +37,8 @@ except ImportError:
 class EquilibriumPolicy(nn.Module):
     """Policy network using equilibrium dynamics."""
     
-    def __init__(self, obs_dim: int, action_dim: int, hidden_dim: int = 64):
+    def __init__(self, obs_dim: int, action_dim: int, hidden_dim: int = 64, 
+                 max_iters: int = 10, tol: float = 1e-4, damping: float = 0.8):
         super().__init__()
         self.obs_dim = obs_dim
         self.action_dim = action_dim
@@ -55,9 +56,9 @@ class EquilibriumPolicy(nn.Module):
         self.value_head = nn.Linear(hidden_dim, 1)  # Critic
         
         # Equilibrium parameters
-        self.damping = 0.8
-        self.max_iters = 10
-        self.tol = 1e-4
+        self.damping = damping
+        self.max_iters = max_iters
+        self.tol = tol
         
     def equilibrium_step(self, h: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
         """One step of equilibrium iteration."""
@@ -207,6 +208,8 @@ def main():
     parser.add_argument("--lr", type=float, default=0.001, help="Learning rate")
     parser.add_argument("--use-bp", action="store_true", help="Use BP policy (baseline)")
     parser.add_argument("--eval-interval", type=int, default=50, help="Evaluation interval")
+    parser.add_argument("--max-iters", type=int, default=10, help="Max equilibrium iterations")
+    parser.add_argument("--damping", type=float, default=0.8, help="Damping factor")
     
     args = parser.parse_args()
     
@@ -233,7 +236,10 @@ def main():
     if args.use_bp:
         policy = BPPolicy(obs_dim, action_dim, args.hidden_dim)
     else:
-        policy = EquilibriumPolicy(obs_dim, action_dim, args.hidden_dim)
+        policy = EquilibriumPolicy(
+            obs_dim, action_dim, args.hidden_dim,
+            max_iters=args.max_iters, damping=args.damping
+        )
     
     optimizer = torch.optim.Adam(policy.parameters(), lr=args.lr)
     

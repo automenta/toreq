@@ -151,22 +151,47 @@ class Experiment(ABC):
             # Run with timeout (3x expected duration)
             timeout = self.expected_duration_min * 60 * 3
             
-            result = subprocess.run(
+            # Use Popen for unbuffered, real-time output
+            import os
+            env = os.environ.copy()
+            env['PYTHONUNBUFFERED'] = '1'  # Force Python unbuffered mode
+            
+            process = subprocess.Popen(
                 command,
                 shell=True,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
-                timeout=timeout
+                bufsize=1,  # Line buffered
+                env=env
             )
             
+            # Read output line by line with real-time display
+            output_lines = []
+            try:
+                for line in process.stdout:
+                    print(line, end='', flush=True)  # Real-time output
+                    output_lines.append(line)
+                    sys.stdout.flush()
+            except Exception:
+                pass
+            
+            # Wait for completion
+            try:
+                if process.poll() is None:
+                    process.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                raise
+            
             duration = time.time() - self._start_time
-            output = result.stdout + result.stderr
+            output = ''.join(output_lines)
             
             # Save log
             with open(log_path, "w") as f:
                 f.write(f"Command: {command}\n")
                 f.write(f"Duration: {duration:.1f}s\n")
-                f.write(f"Exit code: {result.returncode}\n")
+                f.write(f"Exit code: {process.returncode}\n")
                 f.write("=" * 70 + "\n")
                 f.write(output)
             
@@ -175,9 +200,9 @@ class Experiment(ABC):
             metrics, insights = extractor.extract(output)
             
             # Determine status
-            if result.returncode != 0:
+            if process.returncode != 0:
                 status = ExperimentStatus.ERROR
-                insights.append(f"Exit code: {result.returncode}")
+                insights.append(f"Exit code: {process.returncode}")
             elif not metrics:
                 status = ExperimentStatus.ERROR
                 insights.append("No metrics extracted from output")
@@ -441,6 +466,8 @@ class ClassificationExperiment(Experiment):
     def expected_duration_min(self) -> float:
         return self.config.get("expected_time_min", 10)
     
+        return cmd
+    
     def build_command(self) -> str:
         dataset = self.config.get("dataset", "mnist")
         epochs = self.config.get("epochs", 3)
@@ -450,6 +477,11 @@ class ClassificationExperiment(Experiment):
         cmd = f"python train.py --dataset {dataset} --epochs {epochs} --d-model {d_model}"
         if rapid:
             cmd += " --rapid"
+            
+        # Pass additional config parameters if present
+        for param in ["max_iters", "n_heads", "d_ff", "batch_size"]:
+            if param in self.config:
+                cmd += f" --{param.replace('_', '-')} {self.config[param]}"
         
         # Add any extra args
         for key, value in self.config.get("extra_args", {}).items():
@@ -489,6 +521,11 @@ class AlgorithmicExperiment(Experiment):
         
         if self.config.get("analyze_difficulty", False):
             cmd += " --analyze-difficulty"
+            
+        # Pass additional config parameters if present
+        for param in ["max_iters", "n_heads", "d_ff", "d_model", "batch_size", "lr"]:
+            if param in self.config:
+                cmd += f" --{param.replace('_', '-')} {self.config[param]}"
         
         for key, value in self.config.get("extra_args", {}).items():
             cmd += f" --{key.replace('_', '-')} {value}"
@@ -528,6 +565,11 @@ class RLExperiment(Experiment):
         cmd = f"python train_rl.py --env {env} --episodes {episodes}"
         if use_bp:
             cmd += " --use-bp"
+            
+        # Pass additional config parameters if present
+        for param in ["max_iters", "damping"]:
+            if param in self.config:
+                cmd += f" --{param.replace('_', '-')} {self.config[param]}"
         
         return cmd
     
@@ -558,7 +600,12 @@ class MemoryProfilingExperiment(Experiment):
         d_model = self.config.get("d_model", 256)
         max_iters = self.config.get("max_iters", 100)
         
-        return f"python profile_memory.py --d-model {d_model} --max-iters {max_iters}"
+        cmd = f"python profile_memory.py --d-model {d_model} --max-iters {max_iters}"
+        
+        if "batch_size" in self.config:
+            cmd += f" --batch-size {self.config['batch_size']}"
+            
+        return cmd
     
     def get_metric_extractor(self) -> MetricExtractor:
         return MemoryExtractor()

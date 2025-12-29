@@ -186,6 +186,9 @@ def main():
     parser.add_argument("--batch-size", type=int, default=128, help="Batch size")
     parser.add_argument("--lr", type=float, default=0.002, help="Learning rate")
     parser.add_argument("--beta", type=float, default=0.22, help="EqProp beta")
+    parser.add_argument("--max-iters", type=int, default=30, help="Equilibrium iterations")
+    parser.add_argument("--tol", type=float, default=1e-4, help="Equilibrium tolerance")
+    parser.add_argument("--damping", type=float, default=0.8, help="Equilibrium damping")
     
     # Analysis
     parser.add_argument("--analyze-difficulty", action="store_true",
@@ -250,7 +253,7 @@ def main():
     output_head = output_head.to(device)
     
     # Create solver and trainer
-    solver = EquilibriumSolver(max_iters=30, tol=1e-4, damping=0.8)
+    solver = EquilibriumSolver(max_iters=args.max_iters, tol=args.tol, damping=args.damping)
     trainer = EqPropTrainer(model, solver, output_head, beta=args.beta, lr=args.lr)
     trainer.optimizer.add_param_group({'params': embedding.parameters()})
     

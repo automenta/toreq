@@ -22,9 +22,9 @@ class EquilibriumSolver:
             tol: Convergence tolerance (L2 norm of residual)
             damping: Damping factor α ∈ (0, 1]. Higher = less damping.
         """
-        self.max_iters = max_iters
-        self.tol = tol
-        self.damping = damping
+        self.max_iters = int(max_iters)
+        self.tol = float(tol)  # Ensure tol is always a float
+        self.damping = float(damping)
 
     def solve(self, f: Callable[[Tensor, Tensor], Tensor], 
               h0: Tensor, x: Tensor) -> Tuple[Tensor, int]:

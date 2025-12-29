@@ -60,38 +60,47 @@ class CampaignRunner:
     
     def run_experiment(self, experiment: Experiment, dry_run: bool = False) -> ExperimentResult:
         """Run a single experiment with logging."""
-        self.log(f"\n{'='*70}")
-        self.log(f"🚀 {experiment.name}")
-        self.log(f"   Category: {experiment.category} | Priority: {experiment.priority}")
-        self.log(f"   Expected time: ~{experiment.expected_duration_min} min")
-        self.log(f"   Hypothesis: {experiment.get_hypothesis()}")
+        import sys
+        
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        self.log(f"\n🚀 [{timestamp}] Starting: {experiment.name}")
+        self.log(f"   📂 Category: {experiment.category}")
+        self.log(f"   ⚡ Priority: {experiment.priority}")
+        self.log(f"   ⏱️  Expected: ~{experiment.expected_duration_min} min")
+        self.log(f"   🔬 Hypothesis: {experiment.get_hypothesis()}")
         
         if not dry_run:
-            self.log(f"   Command: {experiment.build_command()}")
-        self.log(f"{'='*70}")
+            cmd = experiment.build_command()
+            self.log(f"   💻 Command: {cmd}")
+            self.log(f"   🏃 Running...")
+            sys.stdout.flush()  # Force output
         
         result = experiment.run(self.output_dir, dry_run=dry_run)
         self.results.append(result)
         
         # Log result
+        timestamp = datetime.now().strftime('%H:%M:%S')
         icon = "✅" if result.status == ExperimentStatus.SUCCESS else \
                "❌" if result.status == ExperimentStatus.FAILURE else \
                "⚠️" if result.status == ExperimentStatus.ERROR else "⏭️"
         
-        self.log(f"\n{icon} {result.name} [{result.status.value.upper()}]")
+        self.log(f"\n{icon} [{timestamp}] {result.name} [{result.status.value.upper()}]")
         if result.metrics:
             for metric, value in result.metrics.items():
-                self.log(f"   {metric}: {value:.4f}")
-        self.log(f"   Duration: {result.duration_sec:.1f}s")
+                self.log(f"   📈 {metric}: {value:.4f}")
+        self.log(f"   ⏰ Duration: {result.duration_sec:.1f}s ({result.duration_sec/60:.1f}min)")
         for insight in result.insights:
             self.log(f"   💡 {insight}")
+        if result.log_path:
+            self.log(f"   📄 Log: {result.log_path}")
         
         # Save intermediate results
         self._save_results()
+        sys.stdout.flush()  # Force output
         
         return result
     
-    def run_campaign(self, experiments: List[Experiment], dry_run: bool = False) -> None:
+    def run_campaign(self, experiments: List[Experiment], dry_run: bool = False, confirm: bool = False) -> None:
         """Run a full campaign of experiments."""
         total = len(experiments)
         total_time = sum(e.expected_duration_min for e in experiments)
@@ -99,15 +108,16 @@ class CampaignRunner:
         self.log(f"\n{'='*70}")
         self.log(f"🔬 TorEqProp Discovery Campaign")
         self.log(f"{'='*70}")
-        self.log(f"Experiments: {total}")
-        self.log(f"Estimated time: {total_time:.0f} minutes ({total_time/60:.1f} hours)")
-        self.log(f"Output: {self.output_dir}")
+        self.log(f"⏰ Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        self.log(f"📊 Experiments: {total}")
+        self.log(f"⏱️  Estimated time: {total_time:.0f} minutes ({total_time/60:.1f} hours)")
+        self.log(f"💾 Output: {self.output_dir}")
         self.log("")
         
         # List experiments
-        self.log("Experiments to run:")
+        self.log("📋 Experiments to run:")
         for i, exp in enumerate(experiments, 1):
-            self.log(f"  {i}. [{exp.category}] {exp.name} ({exp.priority}) ~{exp.expected_duration_min}min")
+            self.log(f"  {i}. [{exp.category:^15}] {exp.name:30} ({exp.priority:6}) ~{exp.expected_duration_min}min")
         self.log("")
         
         if dry_run:
@@ -115,17 +125,29 @@ class CampaignRunner:
             self.log("Use without --dry-run to execute.")
             return
         
-        # Confirm
-        self.log("Press Enter to start, or Ctrl+C to cancel...")
-        try:
-            input()
-        except KeyboardInterrupt:
-            self.log("\nCancelled.")
-            return
+        # Optional confirmation
+        if confirm:
+            self.log("Press Enter to start, or Ctrl+C to cancel...")
+            try:
+                input()
+            except KeyboardInterrupt:
+                self.log("\nCancelled.")
+                return
+        else:
+            self.log("🚀 Starting experiments in 2 seconds...")
+            import time
+            time.sleep(2)
         
         # Run each experiment
         for i, experiment in enumerate(experiments, 1):
-            self.log(f"\n[{i}/{total}] Running {experiment.name}...")
+            elapsed = (datetime.now() - self.start_time).total_seconds() / 60
+            remaining = total_time - elapsed
+            progress = (i - 1) / total * 100
+            
+            self.log(f"\n{'='*70}")
+            self.log(f"📍 Progress: [{i}/{total}] ({progress:.0f}% complete)")
+            self.log(f"⏰ Elapsed: {elapsed:.1f}min | Remaining: ~{remaining:.0f}min")
+            self.log(f"{'='*70}")
             self.run_experiment(experiment, dry_run=False)
         
         # Print summary
@@ -212,7 +234,8 @@ def filter_experiments(
     phases: Optional[List[int]] = None,
     categories: Optional[List[str]] = None,
     priority: Optional[str] = None,
-    quick_mode: bool = False
+    quick_mode: bool = False,
+    smoke_test: bool = False
 ) -> List[Experiment]:
     """Filter and modify experiments based on criteria."""
     
@@ -254,6 +277,31 @@ def filter_experiments(
             quick_experiments.append(ExperimentBuilder.from_dict(new_config))
         filtered = quick_experiments
     
+    # Smoke test mode: ultra-minimal for infrastructure verification
+    if smoke_test:
+        smoke_experiments = []
+        for exp in filtered:
+            new_config = exp.config.copy()
+            new_config["name"] = exp.name + " [SMOKE]"
+            
+            # Minimal model dimensions
+            new_config["d_model"] = 32
+            new_config["n_heads"] = 2
+            new_config["d_ff"] = 64
+            new_config["max_iters"] = 5
+            
+            # Minimal training
+            new_config["epochs"] = 1
+            new_config["batch_size"] = 32
+            new_config["episodes"] = 10  # For RL
+            
+            # Reduce time estimates
+            new_config["expected_time_min"] = 0.5
+            new_config["success_threshold"] = 0.1  # Just needs to run
+            
+            smoke_experiments.append(ExperimentBuilder.from_dict(new_config))
+        filtered = smoke_experiments
+    
     return filtered
 
 
@@ -270,6 +318,7 @@ Examples:
   python run_discovery.py                     # Full campaign
   python run_discovery.py --phase 1           # Phase 1 only (dataset sweep)
   python run_discovery.py --phase 1 2 3       # Phases 1-3 (rapid exploration)
+  python run_discovery.py --smoke-test        # Smoke test all phases (<5min)
   python run_discovery.py --quick             # Quick validation (1 epoch each)
   python run_discovery.py --dry-run           # Preview experiments
   python run_discovery.py --category rl       # RL experiments only
@@ -288,6 +337,8 @@ Examples:
                         help="Filter by priority level")
     parser.add_argument("--quick", action="store_true",
                         help="Quick validation mode (1 epoch each)")
+    parser.add_argument("--smoke-test", action="store_true",
+                        help="Ultra-minimal smoke test (d=32, 1 epoch, <5min total)")
     
     # Configuration
     parser.add_argument("--config", type=str,
@@ -338,7 +389,8 @@ Examples:
         phases=args.phase,
         categories=args.category,
         priority=args.priority,
-        quick_mode=args.quick
+        quick_mode=args.quick,
+        smoke_test=args.smoke_test
     )
     
     if not experiments:
@@ -350,7 +402,12 @@ Examples:
     
     # Run campaign
     runner = CampaignRunner(output_dir, verbose=not args.quiet)
-    runner.run_campaign(experiments, dry_run=args.dry_run)
+    
+    # Enable line buffering for real-time output
+    import sys
+    sys.stdout.reconfigure(line_buffering=True)
+    
+    runner.run_campaign(experiments, dry_run=args.dry_run, confirm=False)
 
 
 if __name__ == "__main__":

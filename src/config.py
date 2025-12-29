@@ -104,22 +104,35 @@ class TorEqPropConfig:
                     help=f"{field_name}"
                 )
         
-        args = parser.parse_args()
-        config_dict = vars(args)
+        # First check if rapid mode is requested
+        # We need to do this before final parsing to allow CLI args to override rapid defaults
+        args_temp, _ = parser.parse_known_args()
         
-        # If rapid mode, load defaults from rapid_mode.yaml first
-        if config_dict.get('rapid', False):
+        if args_temp.rapid:
             rapid_config_path = Path(__file__).parent.parent / "configs" / "rapid_mode.yaml"
             if rapid_config_path.exists():
                 with open(rapid_config_path) as f:
                     rapid_defaults = yaml.safe_load(f)
-                # Apply rapid defaults, but CLI args override
+                
+                # Filter to only known fields and ensure types
+                valid_defaults = {}
                 for key, value in rapid_defaults.items():
-                    if key in config_dict:
-                        # Only override if user didn't explicitly set a different value
-                        # (argparse doesn't distinguish "didn't pass" from "passed default")
-                        config_dict[key] = value
-                print(f"[Rapid Mode] Loaded config from {rapid_config_path}")
+                    if key in cls.__dataclass_fields__:
+                        field_type = cls.__dataclass_fields__[key].type
+                        if hasattr(field_type, '__origin__') and field_type.__origin__ is Optional:
+                            field_type = field_type.__args__[0]
+                        # Ensure type conversion
+                        if field_type in (int, float, str, bool):
+                            valid_defaults[key] = field_type(value)
+                        else:
+                            valid_defaults[key] = value
+                
+                print(f"[Rapid Mode] Loaded defaults from {rapid_config_path}")
+                parser.set_defaults(**valid_defaults)
+        
+        # Now parse args with updated defaults
+        args = parser.parse_args()
+        config_dict = vars(args)
         
         return cls(**config_dict)
     
