@@ -3,16 +3,17 @@
 TorEqProp Autonomous Validation Engine - Complete Multi-Phase Version
 
 Validates ALL experiment types:
-- Phase 1: Classification (MNIST, Fashion, CIFAR-10, SVHN)
-- Phase 2: Algorithmic (parity, copy, addition)
-- Phase 3: Reinforcement Learning (CartPole, Acrobot, MountainCar, LunarLander)
-- Phase 4: Extended Training (high-accuracy push)
-- Phase 5: Memory Profiling
+- Phase 1: Size Comparison (quick results, punch-above-weight analysis)
+- Phase 2: Classification (MNIST, Fashion, CIFAR-10, SVHN)
+- Phase 3: Algorithmic (parity, copy, addition)
+- Phase 4: Reinforcement Learning (CartPole, Acrobot, MountainCar, LunarLander)
+- Phase 5: Extended Training (high-accuracy push)
+- Phase 6: Memory Profiling
 
 Usage:
     python validation_engine.py              # Run all phases
-    python validation_engine.py --phase 1    # Classification only
-    python validation_engine.py --phase 3    # RL only
+    python validation_engine.py --phase 1    # Size comparison only (quick!)
+    python validation_engine.py --phase 2    # Classification only
     python validation_engine.py --status     # Show progress
 """
 
@@ -29,7 +30,7 @@ from typing import Optional, Dict, List, Tuple, Any
 from dataclasses import dataclass
 
 from validation_db import ValidationDB, ExperimentRun, generate_experiment_id
-from statistics import StatisticalAnalyzer, FairnessChecker, ComparisonResult
+from statistics import StatisticalAnalyzer, FairnessChecker, ComparisonResult, PerformanceEfficiencyAnalyzer, EfficiencyMetrics
 from readme_updater import ReadmeUpdater
 
 
@@ -37,7 +38,7 @@ from readme_updater import ReadmeUpdater
 class ExperimentSpec:
     """Specification for a single experiment."""
     experiment_id: str
-    phase: str               # classification, algorithmic, rl, extended, memory
+    phase: str               # classification, algorithmic, rl, extended, memory, size_comparison
     name: str                # Dataset/task/environment name
     algorithm: str           # eqprop or bp
     seed: int
@@ -46,6 +47,10 @@ class ExperimentSpec:
     metric_name: str
     metric_pattern: str
     priority: int
+    # Size comparison fields
+    model_size: str = ""     # Size name (tiny/small/medium/large)
+    d_model: int = 128       # Model dimension
+    hidden_dim: int = 64     # Hidden dimension (for RL)
 
 
 class MultiPhaseScheduler:
@@ -59,23 +64,27 @@ class MultiPhaseScheduler:
         """Generate all experiment specifications."""
         specs = []
         
-        # Phase 1: Classification
+        # Phase 1: Size Comparison (quick results across model sizes FIRST)
+        if self.config.get("size_comparison", {}).get("enabled", True):
+            specs.extend(self._get_size_comparison_specs())
+        
+        # Phase 2: Classification
         if self.config.get("classification", {}).get("enabled", True):
             specs.extend(self._get_classification_specs())
         
-        # Phase 2: Algorithmic
+        # Phase 3: Algorithmic
         if self.config.get("algorithmic", {}).get("enabled", True):
             specs.extend(self._get_algorithmic_specs())
         
-        # Phase 3: RL
+        # Phase 4: RL
         if self.config.get("rl", {}).get("enabled", True):
             specs.extend(self._get_rl_specs())
         
-        # Phase 4: Extended
+        # Phase 5: Extended Training
         if self.config.get("extended", {}).get("enabled", True):
             specs.extend(self._get_extended_specs())
         
-        # Phase 5: Memory
+        # Phase 6: Memory Profiling
         if self.config.get("memory", {}).get("enabled", True):
             specs.extend(self._get_memory_specs())
         
@@ -229,6 +238,81 @@ class MultiPhaseScheduler:
                 ))
         return specs
     
+    def _get_size_comparison_specs(self) -> List[ExperimentSpec]:
+        """Generate size comparison experiment specifications."""
+        specs = []
+        cfg = self.config.get("size_comparison", {})
+        if not cfg.get("enabled", True):
+            return specs
+        
+        seeds = cfg.get("seeds", [0, 1, 2])
+        sizes = cfg.get("sizes", [])
+        experiments = cfg.get("experiments", [])
+        cmd_templates = cfg.get("command_templates", {})
+        
+        # Get enabled baselines
+        baselines_cfg = self.config.get("baselines", [{"name": "bp", "enabled": True}])
+        enabled_baselines = [b["name"] for b in baselines_cfg if b.get("enabled", True)]
+        algorithms = ["eqprop"] + enabled_baselines
+        
+        for exp in experiments:
+            exp_type = exp.get("type", "classification")
+            exp_name = exp.get("name", exp.get("dataset", exp.get("env", "unknown")))
+            
+            # Get metric pattern based on type
+            if exp_type == "classification":
+                metric_pattern = r"Test Acc[uracy]*:\s*([\d.]+)"
+                metric_name = "test_accuracy"
+            elif exp_type == "rl":
+                metric_pattern = r"Final Average Reward:\s*([\d.]+)"
+                metric_name = "avg_reward"
+            else:
+                metric_pattern = r"([\d.]+)"
+                metric_name = "metric"
+            
+            for size in sizes:
+                size_name = size["name"]
+                d_model = size.get("d_model", 128)
+                hidden_dim = size.get("hidden_dim", 64)
+                
+                for algo in algorithms:
+                    # Get command template
+                    type_templates = cmd_templates.get(exp_type, {})
+                    template = type_templates.get(algo, "")
+                    
+                    if not template:
+                        continue
+                    
+                    for seed in seeds:
+                        # Format command
+                        cmd = template.format(
+                            dataset=exp.get("dataset", "mnist"),
+                            env=exp.get("env", "CartPole-v1"),
+                            epochs=exp.get("epochs", 5),
+                            episodes=exp.get("episodes", 300),
+                            d_model=d_model,
+                            hidden_dim=hidden_dim,
+                            seed=seed
+                        )
+                        
+                        specs.append(ExperimentSpec(
+                            experiment_id=f"size_{exp_name}_{size_name}_{algo}_s{seed}",
+                            phase="size_comparison",
+                            name=exp_name,
+                            algorithm=algo,
+                            seed=seed,
+                            command=cmd,
+                            success_threshold=exp.get("success_threshold", 0.85),
+                            metric_name=metric_name,
+                            metric_pattern=metric_pattern,
+                            priority=size["priority"],
+                            model_size=size_name,
+                            d_model=d_model,
+                            hidden_dim=hidden_dim
+                        ))
+        
+        return specs
+    
     def get_next_experiment(self, phase_filter: Optional[List[str]] = None) -> Optional[ExperimentSpec]:
         """Get next experiment to run based on priority and gaps."""
         all_specs = self.get_all_specs()
@@ -237,8 +321,8 @@ class MultiPhaseScheduler:
         if phase_filter:
             all_specs = [s for s in all_specs if s.phase in phase_filter]
         
-        # Sort by priority, then by phase order
-        phase_order = {"classification": 1, "algorithmic": 2, "rl": 3, "extended": 4, "memory": 5}
+        # Sort by priority, then by phase order (size_comparison first for quick feedback)
+        phase_order = {"size_comparison": 1, "classification": 2, "algorithmic": 3, "rl": 4, "extended": 5, "memory": 6}
         all_specs.sort(key=lambda s: (phase_order.get(s.phase, 99), s.priority, s.seed))
         
         # Find first incomplete experiment
@@ -261,9 +345,9 @@ class MultiPhaseScheduler:
                        if self.db.get_run(s.experiment_id) 
                        and self.db.get_run(s.experiment_id).status == "complete")
         
-        # By phase
+        # By phase (size_comparison first for quick results)
         phases = {}
-        for phase in ["classification", "algorithmic", "rl", "extended", "memory"]:
+        for phase in ["size_comparison", "classification", "algorithmic", "rl", "extended", "memory"]:
             phase_specs = [s for s in all_specs if s.phase == phase]
             phase_complete = sum(1 for s in phase_specs 
                                 if self.db.get_run(s.experiment_id) 
@@ -349,9 +433,17 @@ class ExperimentExecutor:
             
             # Update run record
             run.primary_metric = metric_value
+            # Extract additional efficiency metrics
+            iters_per_forward = self._extract_iters_per_forward(output)
+            epoch_time = self._extract_epoch_time(output)
+            
             run.secondary_metrics = {
                 "solved": 1.0 if solved else 0.0,
-                spec.metric_name: metric_value
+                spec.metric_name: metric_value,
+                "iters_per_forward": iters_per_forward,
+                "epoch_time": epoch_time,
+                "model_size": spec.model_size,
+                "d_model": spec.d_model,
             }
             run.solved = solved
             run.walltime_seconds = walltime
@@ -388,6 +480,44 @@ class ExperimentExecutor:
                 match = re.search(fb, output, re.IGNORECASE)
                 if match:
                     return float(match.group(1))
+        except:
+            pass
+        return 0.0
+    
+    def _extract_iters_per_forward(self, output: str) -> float:
+        """Extract average equilibrium iterations from output."""
+        try:
+            # Look for patterns like "Iters: 15/20" or "Avg Iters: 17.5"
+            patterns = [
+                r"Iters:\s*([\d.]+)/([\d.]+)",  # Format: Iters: free/nudged
+                r"Avg Iters:\s*([\d.]+)",
+                r"iters_free:\s*([\d.]+)",
+                r"train/iters_free.*?:\s*([\d.]+)",
+            ]
+            for pattern in patterns:
+                match = re.search(pattern, output, re.IGNORECASE)
+                if match:
+                    return float(match.group(1))
+        except:
+            pass
+        return 1.0  # Default for BP (single forward pass)
+    
+    def _extract_epoch_time(self, output: str) -> float:
+        """Extract average epoch time from output."""
+        try:
+            # Look for patterns like "Time: 45.2s" or "Epoch time: 45.2s"
+            patterns = [
+                r"Time:\s*([\d.]+)s",
+                r"Epoch.*?time:\s*([\d.]+)",
+                r"train/epoch_time.*?:\s*([\d.]+)",
+                r"Duration:\s*([\d.]+)s",
+            ]
+            epoch_times = []
+            for pattern in patterns:
+                for match in re.finditer(pattern, output, re.IGNORECASE):
+                    epoch_times.append(float(match.group(1)))
+            if epoch_times:
+                return sum(epoch_times) / len(epoch_times)
         except:
             pass
         return 0.0
@@ -429,16 +559,17 @@ class ValidationEngine:
         """Main run loop."""
         print("\n" + "=" * 70)
         print("  TorEqProp Autonomous Validation Engine v2.0")
-        print("  Multi-Phase: Classification | Algorithmic | RL | Extended | Memory")
+        print("  Multi-Phase: Size Compare | Classification | Algorithmic | RL | Extended | Memory")
         print("=" * 70)
         
-        # Map phase numbers to names
+        # Map phase numbers to names (size_comparison first for quick results)
         phase_map = {
-            "1": "classification", "classification": "classification",
-            "2": "algorithmic", "algorithmic": "algorithmic",
-            "3": "rl", "rl": "rl",
-            "4": "extended", "extended": "extended",
-            "5": "memory", "memory": "memory"
+            "1": "size_comparison", "size_comparison": "size_comparison", "size": "size_comparison",
+            "2": "classification", "classification": "classification",
+            "3": "algorithmic", "algorithmic": "algorithmic",
+            "4": "rl", "rl": "rl",
+            "5": "extended", "extended": "extended",
+            "6": "memory", "memory": "memory"
         }
         phase_filter = None
         if phases:
@@ -508,7 +639,8 @@ class ValidationEngine:
             "algorithmic": "Algorithmic",
             "rl": "RL",
             "extended": "Extended",
-            "memory": "Memory"
+            "memory": "Memory",
+            "size_comparison": "Size Compare"
         }
         for phase, p in progress["phases"].items():
             pct = p["completed"] / p["total"] * 100 if p["total"] > 0 else 0
@@ -592,7 +724,85 @@ class ValidationEngine:
                 print(f"   BP:     {result.algo2_mean:.2f}±{result.algo2_std:.2f} (n={result.algo2_n})")
                 print(f"   Δ: {result.improvement_pct:+.1f}%, p={result.p_value:.4f}, d={result.cohens_d:.2f}")
         
+        # Add size comparison report if we have size comparison experiments
+        self._print_size_comparison_report(phase_filter)
+        
         print("\n" + "=" * 70)
+    
+    def _print_size_comparison_report(self, phase_filter: Optional[List[str]] = None):
+        """Print size comparison efficiency analysis."""
+        all_specs = self.scheduler.get_all_specs()
+        
+        # Filter to only size_comparison experiments
+        size_specs = [s for s in all_specs if s.phase == "size_comparison"]
+        
+        if not size_specs:
+            return
+        
+        # Skip if filtered out
+        if phase_filter and "size_comparison" not in phase_filter:
+            return
+        
+        print("\n\n📏 SIZE COMPARISON EFFICIENCY ANALYSIS:")
+        print("-" * 70)
+        
+        # Group by experiment name
+        exp_groups = {}
+        for spec in size_specs:
+            if spec.name not in exp_groups:
+                exp_groups[spec.name] = {}
+            
+            key = (spec.model_size, spec.algorithm)
+            if key not in exp_groups[spec.name]:
+                exp_groups[spec.name][key] = {"perfs": [], "times": [], "iters": []}
+            
+            run = self.db.get_run(spec.experiment_id)
+            if run and run.status == "complete":
+                exp_groups[spec.name][key]["perfs"].append(run.primary_metric)
+                exp_groups[spec.name][key]["times"].append(run.walltime_seconds)
+                if run.secondary_metrics:
+                    exp_groups[spec.name][key]["iters"].append(
+                        run.secondary_metrics.get("iters_per_forward", 1.0)
+                    )
+        
+        # Print efficiency table for each experiment
+        efficiency_analyzer = PerformanceEfficiencyAnalyzer()
+        
+        for exp_name, groups in exp_groups.items():
+            if not groups:
+                continue
+            
+            print(f"\n  📊 {exp_name}:")
+            print(f"  {'Size':<10} {'Algo':<8} {'Perf':>8} {'Time(s)':>8} {'Iters':>6} {'Perf/s':>10}")
+            print(f"  {'-'*52}")
+            
+            metrics_dict = {}
+            for (size, algo), data in sorted(groups.items()):
+                if not data["perfs"]:
+                    continue
+                
+                import numpy as np
+                avg_perf = np.mean(data["perfs"])
+                avg_time = np.mean(data["times"]) if data["times"] else 0
+                avg_iters = np.mean(data["iters"]) if data["iters"] else 1
+                perf_per_s = avg_perf / avg_time if avg_time > 0 else 0
+                
+                metrics_dict[(size, algo)] = efficiency_analyzer.compute_efficiency_metrics(
+                    data["perfs"], data["times"], size, algo, iters_per_forward=avg_iters
+                )
+                
+                # Highlight EqProp rows
+                marker = "🔋" if algo == "eqprop" else "  "
+                print(f"  {marker}{size:<8} {algo:<8} {avg_perf:>8.2f} {avg_time:>8.1f} {avg_iters:>6.1f} {perf_per_s:>10.4f}")
+            
+            # Check for punch-above-weight scenarios
+            if len(metrics_dict) >= 2:
+                size_result = efficiency_analyzer.compare_sizes(metrics_dict, exp_name)
+                if size_result.punch_above_weight:
+                    punch = size_result.punch_above_weight
+                    print(f"\n  🥊 PUNCH ABOVE WEIGHT: {punch['smaller_model']} beats {punch['larger_baseline']}!")
+                    print(f"     Performance: {punch['smaller_perf']:.2f} vs {punch['larger_perf']:.2f}")
+                    print(f"     {punch['size_levels_smaller']} size level(s) smaller")
     
     def status(self, phases: Optional[List[str]] = None):
         """Show current status only."""
@@ -600,7 +810,7 @@ class ValidationEngine:
         print("  TorEqProp Validation Status")
         print("=" * 70)
         
-        phase_map = {"1": "classification", "2": "algorithmic", "3": "rl", "4": "extended", "5": "memory"}
+        phase_map = {"1": "size_comparison", "2": "classification", "3": "algorithmic", "4": "rl", "5": "extended", "6": "memory"}
         phase_filter = [phase_map.get(str(p), p) for p in phases] if phases else None
         
         self._print_status(phase_filter)

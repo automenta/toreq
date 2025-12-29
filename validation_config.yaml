@@ -217,6 +217,83 @@ ablation:
     beta: [0.1, 0.2, 0.3, 0.4]
 
 # ============================================================================
+# PHASE 6: Model Size Comparison (Punch Above Weight Analysis)
+# ============================================================================
+size_comparison:
+  enabled: true
+  seeds: [0, 1, 2]
+  
+  # Model sizes to compare (from tiny to large)
+  sizes:
+    - name: tiny
+      display_name: "Tiny"
+      d_model: 32
+      hidden_dim: 16  # For RL
+      priority: 1
+      
+    - name: small
+      display_name: "Small"
+      d_model: 64
+      hidden_dim: 32
+      priority: 2
+      
+    - name: medium
+      display_name: "Medium"  
+      d_model: 128
+      hidden_dim: 64
+      priority: 3
+      
+    - name: large
+      display_name: "Large"
+      d_model: 256
+      hidden_dim: 128
+      priority: 4
+  
+  # Experiments to run at each size
+  experiments:
+    - name: mnist_size
+      type: classification
+      dataset: mnist
+      epochs: 5
+      metric: test_accuracy
+      success_threshold: 0.85
+      
+    - name: cartpole_size
+      type: rl
+      env: CartPole-v1
+      episodes: 300
+      metric: avg_reward
+      success_threshold: 150
+  
+  # Command templates by type
+  command_templates:
+    classification:
+      eqprop: "python train.py --dataset {dataset} --epochs {epochs} --d-model {d_model} --seed {seed}"
+      bp: "python train_mnist_bp.py --dataset {dataset} --epochs {epochs} --d-model {d_model} --seed {seed}"
+    rl:
+      eqprop: "python train_rl.py --env {env} --episodes {episodes} --hidden-dim {hidden_dim} --seed {seed}"
+      bp: "python train_rl.py --env {env} --episodes {episodes} --hidden-dim {hidden_dim} --seed {seed} --use-bp"
+
+# ============================================================================
+# Baselines Configuration (Multi-baseline support)
+# ============================================================================
+baselines:
+  - name: bp
+    display_name: "Backpropagation"
+    enabled: true
+    is_primary: true
+    description: "Standard backpropagation baseline"
+    
+  # Future baselines can be added here:
+  # - name: adam_only  
+  #   display_name: "Adam (no iterative)"
+  #   enabled: false
+  #   is_primary: false
+  # - name: sgd
+  #   display_name: "SGD Baseline"
+  #   enabled: false
+
+# ============================================================================
 # Statistical Validation Settings
 # ============================================================================
 statistics:

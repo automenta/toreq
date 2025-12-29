@@ -242,6 +242,214 @@ class FairnessChecker:
         )
 
 
+# ============================================================================
+# Efficiency and Size Comparison
+# ============================================================================
+
+@dataclass
+class EfficiencyMetrics:
+    """Metrics for comparing model efficiency across sizes."""
+    
+    model_size: str              # Size name (tiny/small/medium/large)
+    algorithm: str               # Algorithm name (eqprop/bp)
+    param_count: int             # Number of parameters  
+    
+    # Performance metrics
+    performance: float           # Primary metric (accuracy, reward, etc.)
+    performance_std: float       # Standard deviation across seeds
+    n_seeds: int                 # Number of seeds run
+    
+    # Timing metrics
+    avg_iteration_time_ms: float  # Average time per training iteration
+    total_training_time_s: float  # Total training wall time
+    iters_per_forward: float      # Avg equilibrium iterations (EqProp only)
+    
+    # Derived efficiency metrics
+    @property
+    def performance_per_second(self) -> float:
+        """Efficiency: performance per second of training time."""
+        return self.performance / self.total_training_time_s if self.total_training_time_s > 0 else 0
+    
+    @property
+    def performance_per_param(self) -> float:
+        """Parameter efficiency: performance per 1000 parameters."""
+        return (self.performance * 1000) / self.param_count if self.param_count > 0 else 0
+    
+    def to_dict(self) -> Dict:
+        return {
+            "model_size": self.model_size,
+            "algorithm": self.algorithm,
+            "param_count": self.param_count,
+            "performance": self.performance,
+            "performance_std": self.performance_std,
+            "n_seeds": self.n_seeds,
+            "avg_iteration_time_ms": self.avg_iteration_time_ms,
+            "total_training_time_s": self.total_training_time_s,
+            "iters_per_forward": self.iters_per_forward,
+            "performance_per_second": self.performance_per_second,
+            "performance_per_param": self.performance_per_param,
+        }
+
+
+@dataclass
+class SizeComparisonResult:
+    """Result comparing models of different sizes across algorithms."""
+    
+    experiment_type: str          # e.g., "classification/mnist"
+    sizes: List[str]              # Size names compared
+    
+    # Metrics by (size, algorithm)
+    metrics: Dict[Tuple[str, str], EfficiencyMetrics]  
+    
+    # Analysis results
+    best_efficiency_size: str     # Size with best performance/time ratio
+    pareto_frontier: List[str]    # Sizes on the Pareto frontier
+    punch_above_weight: Optional[Dict] = None  # Details of smaller model beating larger baseline
+    
+    def get_efficiency_ranking(self) -> List[Tuple[str, str, float]]:
+        """Get (size, algorithm, efficiency) sorted by efficiency."""
+        ranked = [
+            (m.model_size, m.algorithm, m.performance_per_second)
+            for m in self.metrics.values()
+        ]
+        return sorted(ranked, key=lambda x: x[2], reverse=True)
+    
+    def summary(self) -> str:
+        lines = [f"Size Comparison: {self.experiment_type}"]
+        lines.append("-" * 50)
+        lines.append(f"{'Size':<10} {'Algo':<8} {'Perf':>8} {'Time(s)':>8} {'Perf/s':>10}")
+        lines.append("-" * 50)
+        
+        for (size, algo), m in sorted(self.metrics.items()):
+            lines.append(
+                f"{size:<10} {algo:<8} {m.performance:>8.2f} "
+                f"{m.total_training_time_s:>8.1f} {m.performance_per_second:>10.4f}"
+            )
+        
+        if self.punch_above_weight:
+            lines.append("")
+            lines.append(f"🥊 PUNCH ABOVE WEIGHT: {self.punch_above_weight['smaller_model']} "
+                        f"beats {self.punch_above_weight['larger_baseline']}")
+        
+        return "\n".join(lines)
+
+
+class PerformanceEfficiencyAnalyzer:
+    """Analyze performance efficiency across model sizes."""
+    
+    def __init__(self, baseline_algorithm: str = "bp"):
+        self.baseline_algorithm = baseline_algorithm
+    
+    def compute_efficiency_metrics(
+        self,
+        performance_values: List[float],
+        walltime_values: List[float],
+        model_size: str,
+        algorithm: str,
+        param_count: int = 0,
+        iters_per_forward: float = 1.0
+    ) -> EfficiencyMetrics:
+        """Compute efficiency metrics from raw experiment data."""
+        
+        perf_arr = np.array(performance_values)
+        time_arr = np.array(walltime_values)
+        
+        return EfficiencyMetrics(
+            model_size=model_size,
+            algorithm=algorithm,
+            param_count=param_count,
+            performance=float(np.mean(perf_arr)),
+            performance_std=float(np.std(perf_arr, ddof=1)) if len(perf_arr) > 1 else 0.0,
+            n_seeds=len(performance_values),
+            avg_iteration_time_ms=0.0,  # Computed from logs if available
+            total_training_time_s=float(np.mean(time_arr)) if time_arr.size > 0 else 0.0,
+            iters_per_forward=iters_per_forward
+        )
+    
+    def compare_sizes(
+        self,
+        metrics_by_size_algo: Dict[Tuple[str, str], EfficiencyMetrics],
+        experiment_type: str
+    ) -> SizeComparisonResult:
+        """Compare models across sizes and algorithms."""
+        
+        sizes = sorted(set(m.model_size for m in metrics_by_size_algo.values()))
+        
+        # Find best efficiency (performance per second)
+        best_eff = max(metrics_by_size_algo.values(), 
+                       key=lambda m: m.performance_per_second)
+        
+        # Find Pareto frontier (no model dominates on both perf and time)
+        pareto = self._find_pareto_frontier(list(metrics_by_size_algo.values()))
+        
+        # Check for "punch above weight" scenarios
+        punch = self._find_punch_above_weight(metrics_by_size_algo)
+        
+        return SizeComparisonResult(
+            experiment_type=experiment_type,
+            sizes=sizes,
+            metrics=metrics_by_size_algo,
+            best_efficiency_size=best_eff.model_size,
+            pareto_frontier=[m.model_size for m in pareto],
+            punch_above_weight=punch
+        )
+    
+    def _find_pareto_frontier(
+        self, 
+        metrics: List[EfficiencyMetrics]
+    ) -> List[EfficiencyMetrics]:
+        """Find Pareto-optimal configurations (max performance, min time)."""
+        pareto = []
+        for m in metrics:
+            dominated = False
+            for other in metrics:
+                if (other.performance >= m.performance and 
+                    other.total_training_time_s <= m.total_training_time_s and
+                    (other.performance > m.performance or 
+                     other.total_training_time_s < m.total_training_time_s)):
+                    dominated = True
+                    break
+            if not dominated:
+                pareto.append(m)
+        return pareto
+    
+    def _find_punch_above_weight(
+        self,
+        metrics: Dict[Tuple[str, str], EfficiencyMetrics]
+    ) -> Optional[Dict]:
+        """Find smaller EqProp model that beats larger BP baseline."""
+        
+        # Size ordering (smaller to larger)
+        size_order = {"tiny": 0, "small": 1, "medium": 2, "large": 3, "base": 3}
+        
+        eqprop_models = {k: v for k, v in metrics.items() if v.algorithm == "eqprop"}
+        bp_models = {k: v for k, v in metrics.items() if v.algorithm == self.baseline_algorithm}
+        
+        best_punch = None
+        best_punch_ratio = 0  # How many sizes smaller
+        
+        for (eq_size, _), eq_m in eqprop_models.items():
+            for (bp_size, _), bp_m in bp_models.items():
+                eq_order = size_order.get(eq_size, 2)
+                bp_order = size_order.get(bp_size, 2)
+                
+                # Check if smaller EqProp beats larger BP
+                if eq_order < bp_order and eq_m.performance >= bp_m.performance:
+                    size_diff = bp_order - eq_order
+                    if size_diff > best_punch_ratio:
+                        best_punch_ratio = size_diff
+                        best_punch = {
+                            "smaller_model": f"EqProp-{eq_size}",
+                            "larger_baseline": f"BP-{bp_size}",
+                            "smaller_perf": eq_m.performance,
+                            "larger_perf": bp_m.performance,
+                            "size_levels_smaller": size_diff,
+                            "time_savings_pct": (1 - eq_m.total_training_time_s / bp_m.total_training_time_s) * 100 if bp_m.total_training_time_s > 0 else 0
+                        }
+        
+        return best_punch
+
+
 # Self-test
 if __name__ == "__main__":
     print("Testing StatisticalAnalyzer...")
