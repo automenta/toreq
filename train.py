@@ -12,6 +12,10 @@ from src.models import LoopedTransformerBlock
 from src.solver import EquilibriumSolver
 from src.trainer import EqPropTrainer
 
+# Global PyTorch optimizations
+torch.backends.cudnn.benchmark = True  # Optimize conv/attention for fixed input sizes
+torch.set_float32_matmul_precision('high')  # Use TensorCores if available
+
 
 def get_data_loaders(config: TorEqPropConfig):
     """Create data loaders based on dataset name."""

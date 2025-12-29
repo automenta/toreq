@@ -8,6 +8,10 @@ from src.solver import EquilibriumSolver
 import torch.nn.functional as F
 import time
 
+# Global PyTorch optimizations
+torch.backends.cudnn.benchmark = True  # Optimize conv/attention for fixed input sizes
+torch.set_float32_matmul_precision('high')  # Use TensorCores if available
+
 def train_bp():
     # Configuration
     config = {

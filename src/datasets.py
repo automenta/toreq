@@ -100,12 +100,17 @@ def get_data_loaders(
     train_dataset, input_dim, num_classes = get_dataset(dataset_name, train=True, data_dir=data_dir)
     test_dataset, _, _ = get_dataset(dataset_name, train=False, data_dir=data_dir)
     
+    # Use persistent workers for faster data loading when num_workers > 0
+    persistent = num_workers > 0
+    
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
-        pin_memory=True
+        pin_memory=True,
+        persistent_workers=persistent,
+        prefetch_factor=2 if num_workers > 0 else None
     )
     
     test_loader = DataLoader(
@@ -113,7 +118,9 @@ def get_data_loaders(
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
-        pin_memory=True
+        pin_memory=True,
+        persistent_workers=persistent,
+        prefetch_factor=2 if num_workers > 0 else None
     )
     
     return train_loader, test_loader, input_dim, num_classes

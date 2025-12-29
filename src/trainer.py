@@ -114,7 +114,7 @@ class EqPropTrainer:
         h_nudged, iters_nudged = self._solve_nudged_equilibrium(h_free, x, y)
         
         # Phase 3: Update parameters using configured strategy
-        self.optimizer.zero_grad()
+        self.optimizer.zero_grad(set_to_none=True)  # Faster than zero_grad()
         total_loss = self._compute_and_apply_updates(h_free, h_nudged, x, y)
         self.optimizer.step()
         

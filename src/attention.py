@@ -80,9 +80,12 @@ class LinearAttention(Attention):
         Q_prime = F.elu(Q) + 1.0
         K_prime = F.elu(K) + 1.0
         
-        # Efficient linear attention
+        # Efficient linear attention with optimized contraction order
+        # Compute KV = K^T @ V first (smaller intermediate tensor)
         KV = torch.einsum('bhsd,bhsv->bhdv', K_prime, V)
-        Z = torch.einsum('bhsd,bhd->bhs', Q_prime, K_prime.sum(dim=2)) + 1e-6
+        # Sum K for normalization
+        K_sum = K_prime.sum(dim=2)  # [B, H, D]
+        Z = torch.einsum('bhsd,bhd->bhs', Q_prime, K_sum) + 1e-6
         out = torch.einsum('bhsd,bhdv->bhsv', Q_prime, KV) / Z.unsqueeze(-1)
         
         # Reshape back and apply output projection
@@ -92,7 +95,7 @@ class LinearAttention(Attention):
     def _project_and_reshape(self, tensor: Tensor, seq_len: int, batch_size: int) -> Tensor:
         """Reshape [seq, batch, d_model] to [batch, heads, seq, head_dim]."""
         tensor = tensor.view(seq_len, batch_size, self.n_heads, self.head_dim)
-        return tensor.permute(1, 2, 0, 3)  # [B, H, S, D]
+        return tensor.permute(1, 2, 0, 3).contiguous()  # [B, H, S, D] - contiguous for better memory access
     
     def _reshape_back(self, tensor: Tensor, seq_len: int, batch_size: int) -> Tensor:
         """Reshape [batch, heads, seq, head_dim] to [seq, batch, d_model]."""

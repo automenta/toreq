@@ -39,14 +39,23 @@ class EquilibriumSolver:
             Tuple of (equilibrium state, number of iterations)
         """
         h = h0
+        
+        # Check convergence every few iterations for efficiency
+        check_interval = max(1, min(5, self.max_iters // 10))
+        
         for t in range(self.max_iters):
             fx = f(h, x)
-            h_new = (1 - self.damping) * h + self.damping * fx
-
-            residual = (h_new - h).norm()
-            if residual < self.tol:
-                return h_new, t + 1
-            h = h_new
+            
+            # Damped update: h = (1-α)*h + α*fx
+            # Use out-of-place lerp to preserve gradient graph
+            h = torch.lerp(h, fx, self.damping)
+            
+            # Check convergence periodically (residual check is expensive)
+            if (t + 1) % check_interval == 0 or t == self.max_iters - 1:
+                # Use max norm (cheaper than L2 norm)
+                residual = (fx - h).abs().max().item()
+                if residual < self.tol:
+                    return h, t + 1
         
         # Did not converge within max_iters
         return h, self.max_iters
