@@ -1,0 +1,93 @@
+{
+  "start_time": "2025-12-29T09:52:07.702963",
+  "last_updated": "2025-12-29T09:56:21.965866",
+  "results": [
+    {
+      "name": "MNIST Rapid",
+      "status": "success",
+      "metrics": {
+        "test_accuracy": 0.8952,
+        "train_accuracy": 0.8802
+      },
+      "duration_sec": 87.86529183387756,
+      "timestamp": "2025-12-29T09:52:09.703262",
+      "log_path": "logs/discovery/20251229_095207/mnist_rapid.log",
+      "error": null,
+      "insights": [
+        "Good performance - consider scaling"
+      ],
+      "metadata": {
+        "command": "python train.py --dataset mnist --epochs 3 --d-model 64 --rapid",
+        "config": {
+          "name": "MNIST Rapid",
+          "type": "classification",
+          "dataset": "mnist",
+          "epochs": 3,
+          "rapid": true,
+          "success_threshold": 0.8,
+          "priority": "HIGH",
+          "expected_time_min": 5,
+          "hypothesis": "Baseline validation"
+        }
+      }
+    },
+    {
+      "name": "Fashion Rapid",
+      "status": "success",
+      "metrics": {
+        "test_accuracy": 0.7845,
+        "train_accuracy": 0.7787
+      },
+      "duration_sec": 88.87833666801453,
+      "timestamp": "2025-12-29T09:53:37.569189",
+      "log_path": "logs/discovery/20251229_095207/fashion_rapid.log",
+      "error": null,
+      "insights": [
+        "Good performance - consider scaling"
+      ],
+      "metadata": {
+        "command": "python train.py --dataset fashion --epochs 3 --d-model 64 --rapid",
+        "config": {
+          "name": "Fashion Rapid",
+          "type": "classification",
+          "dataset": "fashion",
+          "epochs": 3,
+          "rapid": true,
+          "success_threshold": 0.7,
+          "priority": "HIGH",
+          "expected_time_min": 5,
+          "hypothesis": "Harder than MNIST"
+        }
+      }
+    },
+    {
+      "name": "CIFAR-10 Rapid",
+      "status": "failure",
+      "metrics": {
+        "test_accuracy": 0.3228,
+        "train_accuracy": 0.319
+      },
+      "duration_sec": 75.51716828346252,
+      "timestamp": "2025-12-29T09:55:06.448308",
+      "log_path": "logs/discovery/20251229_095207/cifar-10_rapid.log",
+      "error": null,
+      "insights": [
+        "Weak signal - architecture changes may help"
+      ],
+      "metadata": {
+        "command": "python train.py --dataset cifar10 --epochs 3 --d-model 64 --rapid",
+        "config": {
+          "name": "CIFAR-10 Rapid",
+          "type": "classification",
+          "dataset": "cifar10",
+          "epochs": 3,
+          "rapid": true,
+          "success_threshold": 0.35,
+          "priority": "HIGH",
+          "expected_time_min": 8,
+          "hypothesis": "Complexity jump"
+        }
+      }
+    }
+  ]
+}

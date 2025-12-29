@@ -1,0 +1,96 @@
+{
+  "start_time": "2025-12-29T09:59:16.444868",
+  "last_updated": "2025-12-29T09:59:30.331713",
+  "results": [
+    {
+      "name": "Memory d=256 [SMOKE]",
+      "status": "error",
+      "metrics": {},
+      "duration_sec": 3.959697961807251,
+      "timestamp": "2025-12-29T09:59:18.445189",
+      "log_path": "logs/discovery/20251229_095916/memory_d=256_[smoke].log",
+      "error": null,
+      "insights": [
+        "No metrics extracted from output"
+      ],
+      "metadata": {
+        "command": "python profile_memory.py --d-model 32 --max-iters 5 --batch-size 32",
+        "config": {
+          "name": "Memory d=256 [SMOKE]",
+          "type": "memory",
+          "d_model": 32,
+          "max_iters": 5,
+          "success_threshold": 0.1,
+          "priority": "MEDIUM",
+          "expected_time_min": 0.5,
+          "hypothesis": "Baseline memory",
+          "n_heads": 2,
+          "d_ff": 64,
+          "epochs": 1,
+          "batch_size": 32,
+          "episodes": 10
+        }
+      }
+    },
+    {
+      "name": "Memory d=1024 [SMOKE]",
+      "status": "error",
+      "metrics": {},
+      "duration_sec": 4.0250091552734375,
+      "timestamp": "2025-12-29T09:59:22.405545",
+      "log_path": "logs/discovery/20251229_095916/memory_d=1024_[smoke].log",
+      "error": null,
+      "insights": [
+        "No metrics extracted from output"
+      ],
+      "metadata": {
+        "command": "python profile_memory.py --d-model 32 --max-iters 5 --batch-size 32",
+        "config": {
+          "name": "Memory d=1024 [SMOKE]",
+          "type": "memory",
+          "d_model": 32,
+          "max_iters": 5,
+          "success_threshold": 0.1,
+          "priority": "HIGH",
+          "expected_time_min": 0.5,
+          "hypothesis": "O(1) emergence",
+          "n_heads": 2,
+          "d_ff": 64,
+          "epochs": 1,
+          "batch_size": 32,
+          "episodes": 10
+        }
+      }
+    },
+    {
+      "name": "Memory d=2048 [SMOKE]",
+      "status": "error",
+      "metrics": {},
+      "duration_sec": 3.9000728130340576,
+      "timestamp": "2025-12-29T09:59:26.431319",
+      "log_path": "logs/discovery/20251229_095916/memory_d=2048_[smoke].log",
+      "error": null,
+      "insights": [
+        "No metrics extracted from output"
+      ],
+      "metadata": {
+        "command": "python profile_memory.py --d-model 32 --max-iters 5 --batch-size 32",
+        "config": {
+          "name": "Memory d=2048 [SMOKE]",
+          "type": "memory",
+          "d_model": 32,
+          "max_iters": 5,
+          "success_threshold": 0.1,
+          "priority": "HIGH",
+          "expected_time_min": 0.5,
+          "hypothesis": "Clear O(1) advantage",
+          "n_heads": 2,
+          "d_ff": 64,
+          "epochs": 1,
+          "batch_size": 32,
+          "episodes": 10
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+Command: python train.py --dataset mnist --epochs 3 --d-model 64 --rapid
+Duration: 88.5s
+Exit code: 0
+======================================================================
+[Rapid Mode] Loaded config from /home/me/toreq/configs/rapid_mode.yaml
+======================================================================
+Training TorEqProp on MNIST
+======================================================================
+Device: cuda
+Model: d_model=64, n_heads=4, d_ff=256
+Attention: linear, Symmetric: False
+Beta: 0.22, LR: 0.002, Damping: 0.8
+Compile: False, Wandb: False
+======================================================================
+Epoch 0 [0/469] Loss: 2.5707 Acc: 0.0391 Iters: 20/20
+Epoch 0 [100/469] Loss: 2.0872 Acc: 0.3281 Iters: 20/20
+Epoch 0 [200/469] Loss: 1.6994 Acc: 0.3828 Iters: 20/20
+Epoch 0 [300/469] Loss: 1.3864 Acc: 0.4766 Iters: 20/20
+Epoch 0 [400/469] Loss: 1.0404 Acc: 0.6641 Iters: 20/20
+
+Epoch 0 Summary:
+  Train Loss: 1.5614, Train Acc: 0.4919
+  Test Loss: 0.8225, Test Acc: 0.7494
+  Avg Iters: 20.0/20.0
+  Time: 27.0s
+Epoch 1 [0/469] Loss: 0.8466 Acc: 0.7344 Iters: 20/20
+Epoch 1 [100/469] Loss: 0.7328 Acc: 0.7578 Iters: 20/20
+Epoch 1 [200/469] Loss: 0.6785 Acc: 0.7812 Iters: 20/20
+Epoch 1 [300/469] Loss: 0.4550 Acc: 0.8984 Iters: 20/20
+Epoch 1 [400/469] Loss: 0.5274 Acc: 0.7969 Iters: 20/20
+
+Epoch 1 Summary:
+  Train Loss: 0.5907, Train Acc: 0.8279
+  Test Loss: 0.4275, Test Acc: 0.8765
+  Avg Iters: 20.0/20.0
+  Time: 27.3s
+Epoch 2 [0/469] Loss: 0.3028 Acc: 0.8984 Iters: 20/20
+Epoch 2 [100/469] Loss: 0.3056 Acc: 0.9297 Iters: 20/20
+Epoch 2 [200/469] Loss: 0.3429 Acc: 0.9219 Iters: 20/20
+Epoch 2 [300/469] Loss: 0.3306 Acc: 0.8828 Iters: 20/20
+Epoch 2 [400/469] Loss: 0.3873 Acc: 0.9062 Iters: 20/20
+
+Epoch 2 Summary:
+  Train Loss: 0.4081, Train Acc: 0.8828
+  Test Loss: 0.3544, Test Acc: 0.8997
+  Avg Iters: 20.0/20.0
+  Time: 27.6s
+
+======================================================================
+Training complete! Best test accuracy: 0.8997
+======================================================================

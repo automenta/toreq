@@ -1,0 +1,297 @@
+{
+  "start_time": "2025-12-29T09:33:26.533306",
+  "last_updated": "2025-12-29T09:52:44.371478",
+  "results": [
+    {
+      "name": "MNIST Rapid",
+      "status": "success",
+      "metrics": {
+        "test_accuracy": 0.8997,
+        "train_accuracy": 0.8828
+      },
+      "duration_sec": 88.50791001319885,
+      "timestamp": "2025-12-29T09:33:28.533669",
+      "log_path": "logs/discovery/20251229_093326/mnist_rapid.log",
+      "error": null,
+      "insights": [
+        "Good performance - consider scaling"
+      ],
+      "metadata": {
+        "command": "python train.py --dataset mnist --epochs 3 --d-model 64 --rapid",
+        "config": {
+          "name": "MNIST Rapid",
+          "type": "classification",
+          "dataset": "mnist",
+          "epochs": 3,
+          "rapid": true,
+          "success_threshold": 0.8,
+          "priority": "HIGH",
+          "expected_time_min": 5,
+          "hypothesis": "Baseline validation"
+        }
+      }
+    },
+    {
+      "name": "Fashion Rapid",
+      "status": "success",
+      "metrics": {
+        "test_accuracy": 0.8868,
+        "train_accuracy": 0.8842
+      },
+      "duration_sec": 88.00358414649963,
+      "timestamp": "2025-12-29T09:34:57.042235",
+      "log_path": "logs/discovery/20251229_093326/fashion_rapid.log",
+      "error": null,
+      "insights": [
+        "Good performance - consider scaling"
+      ],
+      "metadata": {
+        "command": "python train.py --dataset fashion --epochs 3 --d-model 64 --rapid",
+        "config": {
+          "name": "Fashion Rapid",
+          "type": "classification",
+          "dataset": "fashion",
+          "epochs": 3,
+          "rapid": true,
+          "success_threshold": 0.7,
+          "priority": "HIGH",
+          "expected_time_min": 5,
+          "hypothesis": "Harder than MNIST"
+        }
+      }
+    },
+    {
+      "name": "CIFAR-10 Rapid",
+      "status": "success",
+      "metrics": {
+        "test_accuracy": 0.8913,
+        "train_accuracy": 0.8787
+      },
+      "duration_sec": 87.59008359909058,
+      "timestamp": "2025-12-29T09:36:25.046521",
+      "log_path": "logs/discovery/20251229_093326/cifar-10_rapid.log",
+      "error": null,
+      "insights": [
+        "Good performance - consider scaling"
+      ],
+      "metadata": {
+        "command": "python train.py --dataset cifar10 --epochs 3 --d-model 64 --rapid",
+        "config": {
+          "name": "CIFAR-10 Rapid",
+          "type": "classification",
+          "dataset": "cifar10",
+          "epochs": 3,
+          "rapid": true,
+          "success_threshold": 0.35,
+          "priority": "HIGH",
+          "expected_time_min": 8,
+          "hypothesis": "Complexity jump"
+        }
+      }
+    },
+    {
+      "name": "SVHN Rapid",
+      "status": "success",
+      "metrics": {
+        "test_accuracy": 0.896,
+        "train_accuracy": 0.8758
+      },
+      "duration_sec": 87.22633171081543,
+      "timestamp": "2025-12-29T09:37:52.637328",
+      "log_path": "logs/discovery/20251229_093326/svhn_rapid.log",
+      "error": null,
+      "insights": [
+        "Good performance - consider scaling"
+      ],
+      "metadata": {
+        "command": "python train.py --dataset svhn --epochs 3 --d-model 64 --rapid",
+        "config": {
+          "name": "SVHN Rapid",
+          "type": "classification",
+          "dataset": "svhn",
+          "epochs": 3,
+          "rapid": true,
+          "success_threshold": 0.4,
+          "priority": "MEDIUM",
+          "expected_time_min": 8,
+          "hypothesis": "Real-world digits"
+        }
+      }
+    },
+    {
+      "name": "Parity N=8",
+      "status": "failure",
+      "metrics": {
+        "test_accuracy": 0.4928,
+        "train_accuracy": 0.4928
+      },
+      "duration_sec": 70.72317409515381,
+      "timestamp": "2025-12-29T09:39:19.864480",
+      "log_path": "logs/discovery/20251229_093326/parity_n=8.log",
+      "error": null,
+      "insights": [
+        "Weak signal - architecture changes may help"
+      ],
+      "metadata": {
+        "command": "python train_algorithmic.py --task parity --seq-len 8 --epochs 10",
+        "config": {
+          "name": "Parity N=8",
+          "type": "algorithmic",
+          "task": "parity",
+          "seq_len": 8,
+          "epochs": 10,
+          "success_threshold": 0.9,
+          "priority": "HIGH",
+          "expected_time_min": 5,
+          "hypothesis": "Adaptive compute test"
+        }
+      }
+    },
+    {
+      "name": "Parity N=12",
+      "status": "failure",
+      "metrics": {
+        "test_accuracy": 0.5052,
+        "train_accuracy": 0.5052
+      },
+      "duration_sec": 104.69604659080505,
+      "timestamp": "2025-12-29T09:40:30.588636",
+      "log_path": "logs/discovery/20251229_093326/parity_n=12.log",
+      "error": null,
+      "insights": [
+        "Learning signal present - needs tuning"
+      ],
+      "metadata": {
+        "command": "python train_algorithmic.py --task parity --seq-len 12 --epochs 15",
+        "config": {
+          "name": "Parity N=12",
+          "type": "algorithmic",
+          "task": "parity",
+          "seq_len": 12,
+          "epochs": 15,
+          "success_threshold": 0.85,
+          "priority": "MEDIUM",
+          "expected_time_min": 8,
+          "hypothesis": "Longer sequences"
+        }
+      }
+    },
+    {
+      "name": "Copy Task",
+      "status": "failure",
+      "metrics": {
+        "test_accuracy": 0.7987,
+        "train_accuracy": 0.7987
+      },
+      "duration_sec": 38.92602586746216,
+      "timestamp": "2025-12-29T09:42:15.285584",
+      "log_path": "logs/discovery/20251229_093326/copy_task.log",
+      "error": null,
+      "insights": [
+        "Good performance - consider scaling"
+      ],
+      "metadata": {
+        "command": "python train_algorithmic.py --task copy --seq-len 8 --epochs 5",
+        "config": {
+          "name": "Copy Task",
+          "type": "algorithmic",
+          "task": "copy",
+          "seq_len": 8,
+          "epochs": 5,
+          "success_threshold": 0.95,
+          "priority": "MEDIUM",
+          "expected_time_min": 3,
+          "hypothesis": "Easy baseline"
+        }
+      }
+    },
+    {
+      "name": "Addition 4-digit",
+      "status": "failure",
+      "metrics": {
+        "test_accuracy": 0.0,
+        "train_accuracy": 0.0
+      },
+      "duration_sec": 139.227942943573,
+      "timestamp": "2025-12-29T09:42:54.212675",
+      "log_path": "logs/discovery/20251229_093326/addition_4-digit.log",
+      "error": null,
+      "insights": [
+        "Weak signal - architecture changes may help"
+      ],
+      "metadata": {
+        "command": "python train_algorithmic.py --task addition --seq-len 8 --epochs 20",
+        "config": {
+          "name": "Addition 4-digit",
+          "type": "algorithmic",
+          "task": "addition",
+          "seq_len": 8,
+          "epochs": 20,
+          "n_digits": 4,
+          "success_threshold": 0.5,
+          "priority": "HIGH",
+          "expected_time_min": 10,
+          "hypothesis": "Sequential carry propagation"
+        }
+      }
+    },
+    {
+      "name": "CartPole EqProp",
+      "status": "success",
+      "metrics": {
+        "avg_reward": 298.2,
+        "solved": 1.0
+      },
+      "duration_sec": 396.61861515045166,
+      "timestamp": "2025-12-29T09:45:13.441644",
+      "log_path": "logs/discovery/20251229_093326/cartpole_eqprop.log",
+      "error": null,
+      "insights": [
+        "Environment solved!"
+      ],
+      "metadata": {
+        "command": "python train_rl.py --env CartPole-v1 --episodes 500",
+        "config": {
+          "name": "CartPole EqProp",
+          "type": "rl",
+          "env": "CartPole-v1",
+          "episodes": 500,
+          "use_bp": false,
+          "success_threshold": 195.0,
+          "priority": "HIGH",
+          "expected_time_min": 15,
+          "hypothesis": "Can EqProp solve control?"
+        }
+      }
+    },
+    {
+      "name": "CartPole BP",
+      "status": "success",
+      "metrics": {
+        "avg_reward": 268.5,
+        "solved": 1.0
+      },
+      "duration_sec": 54.309775590896606,
+      "timestamp": "2025-12-29T09:51:50.061364",
+      "log_path": "logs/discovery/20251229_093326/cartpole_bp.log",
+      "error": null,
+      "insights": [
+        "Environment solved!"
+      ],
+      "metadata": {
+        "command": "python train_rl.py --env CartPole-v1 --episodes 500 --use-bp",
+        "config": {
+          "name": "CartPole BP",
+          "type": "rl",
+          "env": "CartPole-v1",
+          "episodes": 500,
+          "use_bp": true,
+          "success_threshold": 195.0,
+          "priority": "HIGH",
+          "expected_time_min": 10,
+          "hypothesis": "BP baseline"
+        }
+      }
+    }
+  ]
+}

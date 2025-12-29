@@ -1,0 +1,27 @@
+Command: python train_rl.py --env CartPole-v1 --episodes 10 --max-iters 5
+Duration: 3.7s
+Exit code: 0
+======================================================================
+
+======================================================================
+🎮 Reinforcement Learning with EqProp
+======================================================================
+Environment: CartPole-v1
+Episodes: 10
+Policy: Equilibrium Policy
+======================================================================
+
+Obs dim: 4, Action dim: 2
+Episode 10: Reward=27, Avg(100)=29.0
+
+======================================================================
+📊 RESULTS
+======================================================================
+Policy: EqProp
+Best Average Reward: 68.0
+Final Average Reward: 29.0
+Solved: ❌ No
+Training time: 0.8s
+======================================================================
+
+Results saved to: logs/rl/CartPole-v1_eqprop_20251229_101141.json

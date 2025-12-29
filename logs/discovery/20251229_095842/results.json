@@ -1,0 +1,76 @@
+{
+  "start_time": "2025-12-29T09:58:42.109939",
+  "last_updated": "2025-12-29T09:58:51.315856",
+  "results": [
+    {
+      "name": "CartPole EqProp [SMOKE]",
+      "status": "success",
+      "metrics": {
+        "avg_reward": 25.5,
+        "solved": 1.0
+      },
+      "duration_sec": 3.715542793273926,
+      "timestamp": "2025-12-29T09:58:44.110248",
+      "log_path": "logs/discovery/20251229_095842/cartpole_eqprop_[smoke].log",
+      "error": null,
+      "insights": [
+        "Environment solved!"
+      ],
+      "metadata": {
+        "command": "python train_rl.py --env CartPole-v1 --episodes 10 --max-iters 5",
+        "config": {
+          "name": "CartPole EqProp [SMOKE]",
+          "type": "rl",
+          "env": "CartPole-v1",
+          "episodes": 10,
+          "use_bp": false,
+          "success_threshold": 0.1,
+          "priority": "HIGH",
+          "expected_time_min": 0.5,
+          "hypothesis": "Can EqProp solve control?",
+          "d_model": 32,
+          "n_heads": 2,
+          "d_ff": 64,
+          "max_iters": 5,
+          "epochs": 1,
+          "batch_size": 32
+        }
+      }
+    },
+    {
+      "name": "CartPole BP [SMOKE]",
+      "status": "success",
+      "metrics": {
+        "avg_reward": 23.2,
+        "solved": 1.0
+      },
+      "duration_sec": 3.489048957824707,
+      "timestamp": "2025-12-29T09:58:47.826466",
+      "log_path": "logs/discovery/20251229_095842/cartpole_bp_[smoke].log",
+      "error": null,
+      "insights": [
+        "Environment solved!"
+      ],
+      "metadata": {
+        "command": "python train_rl.py --env CartPole-v1 --episodes 10 --use-bp --max-iters 5",
+        "config": {
+          "name": "CartPole BP [SMOKE]",
+          "type": "rl",
+          "env": "CartPole-v1",
+          "episodes": 10,
+          "use_bp": true,
+          "success_threshold": 0.1,
+          "priority": "HIGH",
+          "expected_time_min": 0.5,
+          "hypothesis": "BP baseline",
+          "d_model": 32,
+          "n_heads": 2,
+          "d_ff": 64,
+          "max_iters": 5,
+          "epochs": 1,
+          "batch_size": 32
+        }
+      }
+    }
+  ]
+}

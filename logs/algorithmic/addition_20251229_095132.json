@@ -1,0 +1,30 @@
+{
+  "task": "addition",
+  "config": {
+    "task": "addition",
+    "seq_len": 8,
+    "n_digits": 4,
+    "n_samples": 10000,
+    "d_model": 32,
+    "n_heads": 2,
+    "d_ff": 64,
+    "epochs": 1,
+    "batch_size": 32,
+    "lr": 0.002,
+    "beta": 0.22,
+    "max_iters": 5,
+    "tol": 0.0001,
+    "damping": 0.8,
+    "analyze_difficulty": false
+  },
+  "best_accuracy": 0,
+  "results": [
+    {
+      "epoch": 0,
+      "train_loss": 9.726728917691654,
+      "train_accuracy": 0.0002995207667731629,
+      "test_loss": 9.969229879833403,
+      "test_accuracy": 0.0
+    }
+  ]
+}

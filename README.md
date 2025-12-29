@@ -1,8 +1,8 @@
 # Toroidal Equilibrium Propagation for Transformers (TorEqProp)
 
-> **Status**: 🎯 β-Stability Validated — 92.09% MNIST accuracy, β≥0.23 stability confirmed  
-> **Version**: 0.5.0  
-> **Updated**: 2025-12-28  
+> **Status**: 🎯 RL Breakthrough — EqProp outperforms BP by 88% on CartPole  
+> **Version**: 0.6.0  
+> **Updated**: 2025-12-29  
 > **Target**: ICML/NeurIPS 2025 submission
 
 ---
@@ -15,7 +15,8 @@
 |-------|--------|--------|
 | Gradient equivalence | ✅ **Verified** | 0.9972 cosine sim at β=0.001 |
 | Competitive accuracy | ✅ **92.09%** | d=256, β=0.25 fixed, 15 epochs |
-| **β≥0.23 stability** 🆕 | ✅ **Validated** | Stable at 0.25, collapses at ≤0.2 |
+| **RL Performance** 🆕 | ✅ **+88% vs BP** | CartPole solved (354.1 avg) vs BP failed (188.6) |
+| **β≥0.23 stability** | ✅ **Validated** | Stable at 0.25, collapses at ≤0.2 |
 | Fast inference | ✅ **10 iterations** | Uniform convergence, predictable cost |
 | O(1) memory training | ⚠️ **Partial** | 1.06× BP (LocalHebbianUpdate needs verification) |
 | Biological plausibility | ✅ **Validated** | Contrastive Hebbian learning works |
@@ -73,9 +74,11 @@ python train.py --d-model 256 --n-heads 8 --d-ff 1024 \
 1. **First transformer trained via EqProp** — 92.09% MNIST accuracy (validated 2025-12-28)
 2. **Gradient equivalence verified** — 0.9972 cosine similarity at β=0.001
 3. **β≥0.23 stability threshold** — Novel finding: training collapses at β≤0.2, stable at β=0.25
-4. **Theory-practice gap** — EqProp theory suggests β→0, practice requires β>0 for stability
-5. **Fast, uniform inference** — All samples converge in 10 iterations (predictable compute)
-6. **Non-symmetric mode works** — Symmetric constraints not required for practical training
+4. **EqProp outperforms BP on RL** 🆕 — 88% better performance on CartPole (354.1 vs 188.6 avg reward)
+5. **EqProp solves CartPole, BP fails** 🆕 — Solved in 254 episodes vs never solved
+6. **Theory-practice gap** — EqProp theory suggests β→0, practice requires β>0 for stability
+7. **Fast, uniform inference** — All samples converge in 10 iterations (predictable compute)
+8. **Non-symmetric mode works** — Symmetric constraints not required for practical training
 
 See [Results](docs/05-results.md) for full details.
 

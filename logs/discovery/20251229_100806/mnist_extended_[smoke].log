@@ -1,0 +1,15 @@
+Command: python train.py --dataset mnist --epochs 1 --d-model 32 --max-iters 5 --n-heads 2 --d-ff 64 --batch-size 32 --beta 0.22 --dropout 0.1 --compile True
+Duration: 3.0s
+Exit code: 2
+======================================================================
+usage: train.py [-h] [--dataset DATASET] [--batch-size BATCH_SIZE]
+                [--d-model D_MODEL] [--n-heads N_HEADS] [--d-ff D_FF]
+                [--dropout DROPOUT] [--attention-type ATTENTION_TYPE]
+                [--symmetric] [--max-iters MAX_ITERS] [--tol TOL]
+                [--damping DAMPING] [--beta BETA] [--beta-anneal] [--lr LR]
+                [--epochs EPOCHS] [--update-mode UPDATE_MODE] [--compile]
+                [--seed SEED] [--rapid] [--wandb]
+                [--wandb-project WANDB_PROJECT] [--wandb-entity WANDB_ENTITY]
+                [--log-interval LOG_INTERVAL] [--device DEVICE]
+                [--num-workers NUM_WORKERS]
+train.py: error: unrecognized arguments: True

@@ -1,0 +1,267 @@
+nohup: ignoring input
+
+======================================================================
+🔬 TorEqProp Discovery Campaign
+======================================================================
+⏰ Started: 2025-12-29 09:33:26
+📊 Experiments: 10
+⏱️  Estimated time: 77 minutes (1.3 hours)
+💾 Output: logs/discovery/20251229_093326
+
+📋 Experiments to run:
+  1. [classification ] MNIST Rapid                    (HIGH  ) ~5min
+  2. [classification ] Fashion Rapid                  (HIGH  ) ~5min
+  3. [classification ] CIFAR-10 Rapid                 (HIGH  ) ~8min
+  4. [classification ] SVHN Rapid                     (MEDIUM) ~8min
+  5. [  algorithmic  ] Parity N=8                     (HIGH  ) ~5min
+  6. [  algorithmic  ] Parity N=12                    (MEDIUM) ~8min
+  7. [  algorithmic  ] Copy Task                      (MEDIUM) ~3min
+  8. [  algorithmic  ] Addition 4-digit               (HIGH  ) ~10min
+  9. [      rl       ] CartPole EqProp                (HIGH  ) ~15min
+  10. [      rl       ] CartPole BP                    (HIGH  ) ~10min
+
+🚀 Starting experiments in 2 seconds...
+
+======================================================================
+📍 Progress: [1/10] (0% complete)
+⏰ Elapsed: 0.0min | Remaining: ~77min
+======================================================================
+
+🚀 [09:33:28] Starting: MNIST Rapid
+   📂 Category: classification
+   ⚡ Priority: HIGH
+   ⏱️  Expected: ~5 min
+   🔬 Hypothesis: Baseline validation
+   💻 Command: python train.py --dataset mnist --epochs 3 --d-model 64 --rapid
+   🏃 Running...
+
+✅ [09:34:57] MNIST Rapid [SUCCESS]
+   📈 test_accuracy: 0.8997
+   📈 train_accuracy: 0.8828
+   ⏰ Duration: 88.5s (1.5min)
+   💡 Good performance - consider scaling
+   📄 Log: logs/discovery/20251229_093326/mnist_rapid.log
+
+======================================================================
+📍 Progress: [2/10] (10% complete)
+⏰ Elapsed: 1.5min | Remaining: ~75min
+======================================================================
+
+🚀 [09:34:57] Starting: Fashion Rapid
+   📂 Category: classification
+   ⚡ Priority: HIGH
+   ⏱️  Expected: ~5 min
+   🔬 Hypothesis: Harder than MNIST
+   💻 Command: python train.py --dataset fashion --epochs 3 --d-model 64 --rapid
+   🏃 Running...
+
+✅ [09:36:25] Fashion Rapid [SUCCESS]
+   📈 test_accuracy: 0.8868
+   📈 train_accuracy: 0.8842
+   ⏰ Duration: 88.0s (1.5min)
+   💡 Good performance - consider scaling
+   📄 Log: logs/discovery/20251229_093326/fashion_rapid.log
+
+======================================================================
+📍 Progress: [3/10] (20% complete)
+⏰ Elapsed: 3.0min | Remaining: ~74min
+======================================================================
+
+🚀 [09:36:25] Starting: CIFAR-10 Rapid
+   📂 Category: classification
+   ⚡ Priority: HIGH
+   ⏱️  Expected: ~8 min
+   🔬 Hypothesis: Complexity jump
+   💻 Command: python train.py --dataset cifar10 --epochs 3 --d-model 64 --rapid
+   🏃 Running...
+
+✅ [09:37:52] CIFAR-10 Rapid [SUCCESS]
+   📈 test_accuracy: 0.8913
+   📈 train_accuracy: 0.8787
+   ⏰ Duration: 87.6s (1.5min)
+   💡 Good performance - consider scaling
+   📄 Log: logs/discovery/20251229_093326/cifar-10_rapid.log
+
+======================================================================
+📍 Progress: [4/10] (30% complete)
+⏰ Elapsed: 4.4min | Remaining: ~73min
+======================================================================
+
+🚀 [09:37:52] Starting: SVHN Rapid
+   📂 Category: classification
+   ⚡ Priority: MEDIUM
+   ⏱️  Expected: ~8 min
+   🔬 Hypothesis: Real-world digits
+   💻 Command: python train.py --dataset svhn --epochs 3 --d-model 64 --rapid
+   🏃 Running...
+
+✅ [09:39:19] SVHN Rapid [SUCCESS]
+   📈 test_accuracy: 0.8960
+   📈 train_accuracy: 0.8758
+   ⏰ Duration: 87.2s (1.5min)
+   💡 Good performance - consider scaling
+   📄 Log: logs/discovery/20251229_093326/svhn_rapid.log
+
+======================================================================
+📍 Progress: [5/10] (40% complete)
+⏰ Elapsed: 5.9min | Remaining: ~71min
+======================================================================
+
+🚀 [09:39:19] Starting: Parity N=8
+   📂 Category: algorithmic
+   ⚡ Priority: HIGH
+   ⏱️  Expected: ~5 min
+   🔬 Hypothesis: Adaptive compute test
+   💻 Command: python train_algorithmic.py --task parity --seq-len 8 --epochs 10
+   🏃 Running...
+
+❌ [09:40:30] Parity N=8 [FAILURE]
+   📈 test_accuracy: 0.4928
+   📈 train_accuracy: 0.4928
+   ⏰ Duration: 70.7s (1.2min)
+   💡 Weak signal - architecture changes may help
+   📄 Log: logs/discovery/20251229_093326/parity_n=8.log
+
+======================================================================
+📍 Progress: [6/10] (50% complete)
+⏰ Elapsed: 7.1min | Remaining: ~70min
+======================================================================
+
+🚀 [09:40:30] Starting: Parity N=12
+   📂 Category: algorithmic
+   ⚡ Priority: MEDIUM
+   ⏱️  Expected: ~8 min
+   🔬 Hypothesis: Longer sequences
+   💻 Command: python train_algorithmic.py --task parity --seq-len 12 --epochs 15
+   🏃 Running...
+
+❌ [09:42:15] Parity N=12 [FAILURE]
+   📈 test_accuracy: 0.5052
+   📈 train_accuracy: 0.5052
+   ⏰ Duration: 104.7s (1.7min)
+   💡 Learning signal present - needs tuning
+   📄 Log: logs/discovery/20251229_093326/parity_n=12.log
+
+======================================================================
+📍 Progress: [7/10] (60% complete)
+⏰ Elapsed: 8.8min | Remaining: ~68min
+======================================================================
+
+🚀 [09:42:15] Starting: Copy Task
+   📂 Category: algorithmic
+   ⚡ Priority: MEDIUM
+   ⏱️  Expected: ~3 min
+   🔬 Hypothesis: Easy baseline
+   💻 Command: python train_algorithmic.py --task copy --seq-len 8 --epochs 5
+   🏃 Running...
+
+❌ [09:42:54] Copy Task [FAILURE]
+   📈 test_accuracy: 0.7987
+   📈 train_accuracy: 0.7987
+   ⏰ Duration: 38.9s (0.6min)
+   💡 Good performance - consider scaling
+   📄 Log: logs/discovery/20251229_093326/copy_task.log
+
+======================================================================
+📍 Progress: [8/10] (70% complete)
+⏰ Elapsed: 9.5min | Remaining: ~68min
+======================================================================
+
+🚀 [09:42:54] Starting: Addition 4-digit
+   📂 Category: algorithmic
+   ⚡ Priority: HIGH
+   ⏱️  Expected: ~10 min
+   🔬 Hypothesis: Sequential carry propagation
+   💻 Command: python train_algorithmic.py --task addition --seq-len 8 --epochs 20
+   🏃 Running...
+
+❌ [09:45:13] Addition 4-digit [FAILURE]
+   📈 test_accuracy: 0.0000
+   📈 train_accuracy: 0.0000
+   ⏰ Duration: 139.2s (2.3min)
+   💡 Weak signal - architecture changes may help
+   📄 Log: logs/discovery/20251229_093326/addition_4-digit.log
+
+======================================================================
+📍 Progress: [9/10] (80% complete)
+⏰ Elapsed: 11.8min | Remaining: ~65min
+======================================================================
+
+🚀 [09:45:13] Starting: CartPole EqProp
+   📂 Category: rl
+   ⚡ Priority: HIGH
+   ⏱️  Expected: ~15 min
+   🔬 Hypothesis: Can EqProp solve control?
+   💻 Command: python train_rl.py --env CartPole-v1 --episodes 500
+   🏃 Running...
+
+✅ [09:51:50] CartPole EqProp [SUCCESS]
+   📈 avg_reward: 298.2000
+   📈 solved: 1.0000
+   ⏰ Duration: 396.6s (6.6min)
+   💡 Environment solved!
+   📄 Log: logs/discovery/20251229_093326/cartpole_eqprop.log
+
+======================================================================
+📍 Progress: [10/10] (90% complete)
+⏰ Elapsed: 18.4min | Remaining: ~59min
+======================================================================
+
+🚀 [09:51:50] Starting: CartPole BP
+   📂 Category: rl
+   ⚡ Priority: HIGH
+   ⏱️  Expected: ~10 min
+   🔬 Hypothesis: BP baseline
+   💻 Command: python train_rl.py --env CartPole-v1 --episodes 500 --use-bp
+   🏃 Running...
+
+✅ [09:52:44] CartPole BP [SUCCESS]
+   📈 avg_reward: 268.5000
+   📈 solved: 1.0000
+   ⏰ Duration: 54.3s (0.9min)
+   💡 Environment solved!
+   📄 Log: logs/discovery/20251229_093326/cartpole_bp.log
+
+======================================================================
+📊 DISCOVERY CAMPAIGN SUMMARY
+======================================================================
+Total experiments: 10
+  ✅ Passed: 6
+  ❌ Failed: 4
+  ⚠️  Errors: 0
+  ⏭️  Skipped: 0
+Total duration: 19.3 minutes
+
+Results by category:
+  classification: 4/4 passed
+  algorithmic: 0/4 passed
+  rl: 2/2 passed
+
+🏆 Best results:
+  classification: MNIST Rapid (0.8997)
+  rl: CartPole EqProp (298.2000)
+
+💡 Key insights:
+  • MNIST Rapid: Good performance - consider scaling
+  • Fashion Rapid: Good performance - consider scaling
+  • CIFAR-10 Rapid: Good performance - consider scaling
+  • SVHN Rapid: Good performance - consider scaling
+  • Parity N=8: Weak signal - architecture changes may help
+  • Parity N=12: Learning signal present - needs tuning
+  • Copy Task: Good performance - consider scaling
+  • Addition 4-digit: Weak signal - architecture changes may help
+  • CartPole EqProp: Environment solved!
+  • CartPole BP: Environment solved!
+
+📋 Recommendations:
+  Investigate failures:
+    - Parity N=8
+    - Parity N=12
+    - Copy Task
+  Scale promising directions:
+    - CartPole EqProp
+    - CartPole BP
+    - MNIST Rapid
+======================================================================
+
+Full results saved to: logs/discovery/20251229_093326/

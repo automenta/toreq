@@ -1,0 +1,64 @@
+{
+  "start_time": "2025-12-29T10:27:01.312714",
+  "last_updated": "2025-12-29T10:34:50.546847",
+  "results": [
+    {
+      "name": "CartPole EqProp",
+      "status": "success",
+      "metrics": {
+        "avg_reward": 354.1,
+        "solved": 1.0
+      },
+      "duration_sec": 425.1611406803131,
+      "timestamp": "2025-12-29T10:27:03.312991",
+      "log_path": "logs/discovery/20251229_102701/cartpole_eqprop.log",
+      "error": null,
+      "insights": [
+        "Environment solved!"
+      ],
+      "metadata": {
+        "command": "python train_rl.py --env CartPole-v1 --episodes 500",
+        "config": {
+          "name": "CartPole EqProp",
+          "type": "rl",
+          "env": "CartPole-v1",
+          "episodes": 500,
+          "use_bp": false,
+          "success_threshold": 195.0,
+          "priority": "HIGH",
+          "expected_time_min": 15,
+          "hypothesis": "Can EqProp solve control?"
+        }
+      }
+    },
+    {
+      "name": "CartPole BP",
+      "status": "failure",
+      "metrics": {
+        "avg_reward": 188.6,
+        "solved": 1.0
+      },
+      "duration_sec": 42.07161855697632,
+      "timestamp": "2025-12-29T10:34:08.474853",
+      "log_path": "logs/discovery/20251229_102701/cartpole_bp.log",
+      "error": null,
+      "insights": [
+        "Environment solved!"
+      ],
+      "metadata": {
+        "command": "python train_rl.py --env CartPole-v1 --episodes 500 --use-bp",
+        "config": {
+          "name": "CartPole BP",
+          "type": "rl",
+          "env": "CartPole-v1",
+          "episodes": 500,
+          "use_bp": true,
+          "success_threshold": 195.0,
+          "priority": "HIGH",
+          "expected_time_min": 10,
+          "hypothesis": "BP baseline"
+        }
+      }
+    }
+  ]
+}

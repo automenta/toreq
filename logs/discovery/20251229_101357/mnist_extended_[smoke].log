@@ -1,0 +1,45 @@
+Command: python train.py --dataset mnist --epochs 1 --d-model 32 --max-iters 5 --n-heads 2 --d-ff 64 --batch-size 32 --beta 0.22 --dropout 0.1 --compile
+Duration: 55.0s
+Exit code: 0
+======================================================================
+======================================================================
+Training TorEqProp on MNIST
+======================================================================
+Device: cuda
+Model: d_model=32, n_heads=2, d_ff=64
+Attention: linear, Symmetric: False
+Beta: 0.22, LR: 0.001, Damping: 0.9
+Compile: True, Wandb: False
+======================================================================
+Compiling model with torch.compile...
+/home/me/.local/lib/python3.13/site-packages/torch/_inductor/compile_fx.py:236: UserWarning: TensorFloat32 tensor cores for float32 matrix multiplication available but not enabled. Consider setting `torch.set_float32_matmul_precision('high')` for better performance.
+  warnings.warn(
+Epoch 0 [0/1875] Loss: 2.7019 Acc: 0.0312 Iters: 5/5
+Epoch 0 [100/1875] Loss: 2.2617 Acc: 0.1250 Iters: 5/5
+Epoch 0 [200/1875] Loss: 2.1708 Acc: 0.3750 Iters: 5/5
+Epoch 0 [300/1875] Loss: 1.7964 Acc: 0.5625 Iters: 5/5
+Epoch 0 [400/1875] Loss: 1.3880 Acc: 0.6250 Iters: 5/5
+Epoch 0 [500/1875] Loss: 1.2047 Acc: 0.8125 Iters: 5/5
+Epoch 0 [600/1875] Loss: 1.0391 Acc: 0.7812 Iters: 5/5
+Epoch 0 [700/1875] Loss: 1.2388 Acc: 0.5625 Iters: 5/5
+Epoch 0 [800/1875] Loss: 0.8062 Acc: 0.9062 Iters: 5/5
+Epoch 0 [900/1875] Loss: 0.9646 Acc: 0.8125 Iters: 5/5
+Epoch 0 [1000/1875] Loss: 0.8311 Acc: 0.8125 Iters: 5/5
+Epoch 0 [1100/1875] Loss: 0.8301 Acc: 0.8125 Iters: 5/5
+Epoch 0 [1200/1875] Loss: 0.9804 Acc: 0.7500 Iters: 5/5
+Epoch 0 [1300/1875] Loss: 0.7598 Acc: 0.8750 Iters: 5/5
+Epoch 0 [1400/1875] Loss: 0.5992 Acc: 0.8750 Iters: 5/5
+Epoch 0 [1500/1875] Loss: 0.5652 Acc: 0.9688 Iters: 5/5
+Epoch 0 [1600/1875] Loss: 0.7852 Acc: 0.8750 Iters: 5/5
+Epoch 0 [1700/1875] Loss: 0.7482 Acc: 0.8438 Iters: 5/5
+Epoch 0 [1800/1875] Loss: 0.4678 Acc: 0.9375 Iters: 5/5
+
+Epoch 0 Summary:
+  Train Loss: 1.1069, Train Acc: 0.7092
+  Test Loss: 0.5882, Test Acc: 0.8856
+  Avg Iters: 5.0/5.0
+  Time: 43.9s
+
+======================================================================
+Training complete! Best test accuracy: 0.8856
+======================================================================

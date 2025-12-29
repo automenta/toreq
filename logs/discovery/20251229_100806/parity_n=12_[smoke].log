@@ -1,0 +1,27 @@
+Command: python train_algorithmic.py --task parity --seq-len 12 --epochs 1 --max-iters 5 --n-heads 2 --d-ff 64 --d-model 32 --batch-size 32
+Duration: 9.3s
+Exit code: 0
+======================================================================
+
+======================================================================
+🧮 Algorithmic Task Training: PARITY
+======================================================================
+Device: cuda
+Task: parity (seq_len=12)
+Model: d=32, heads=2
+Training: 1 epochs, lr=0.002, β=0.22
+Hypothesis: More iterations for more 1s?
+======================================================================
+
+Data: 10000 train, 2000 test
+Input dim: 12, Classes: 2
+Epoch 1/1: Train Loss: 0.7045, Train Acc: 0.4986 | Test Loss: 0.6960, Test Acc: 0.4995 | Time: 6.0s
+
+======================================================================
+📊 RESULTS
+======================================================================
+Best Test Accuracy: 0.4995
+Final Test Accuracy: 0.4995
+Results saved to: logs/algorithmic/parity_20251229_101118.json
+======================================================================
+

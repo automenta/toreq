@@ -1,0 +1,31 @@
+Command: python train_algorithmic.py --task copy --seq-len 8 --epochs 5
+Duration: 38.9s
+Exit code: 0
+======================================================================
+
+======================================================================
+🧮 Algorithmic Task Training: COPY
+======================================================================
+Device: cuda
+Task: copy (seq_len=8)
+Model: d=64, heads=4
+Training: 5 epochs, lr=0.002, β=0.22
+Hypothesis: Should converge quickly
+======================================================================
+
+Data: 10000 train, 2000 test
+Input dim: 80, Classes: 10
+Epoch 1/5: Train Loss: 2.3025, Train Acc: 0.1437 | Test Loss: 2.2466, Test Acc: 0.2701 | Time: 7.5s
+Epoch 2/5: Train Loss: 2.2361, Train Acc: 0.2154 | Test Loss: 2.2312, Test Acc: 0.1716 | Time: 7.1s
+Epoch 3/5: Train Loss: 2.1825, Train Acc: 0.3046 | Test Loss: 2.1369, Test Acc: 0.3798 | Time: 7.0s
+Epoch 4/5: Train Loss: 2.0785, Train Acc: 0.4485 | Test Loss: 1.9979, Test Acc: 0.4911 | Time: 7.0s
+Epoch 5/5: Train Loss: 1.8286, Train Acc: 0.6737 | Test Loss: 1.5781, Test Acc: 0.7987 | Time: 7.0s
+
+======================================================================
+📊 RESULTS
+======================================================================
+Best Test Accuracy: 0.7987
+Final Test Accuracy: 0.7987
+Results saved to: logs/algorithmic/copy_20251229_094253.json
+======================================================================
+

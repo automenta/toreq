@@ -1,0 +1,21 @@
+{
+  "env": "CartPole-v1",
+  "policy": "bp",
+  "episodes": 10,
+  "best_avg_reward": 25.5,
+  "final_avg_reward": 20.7,
+  "solved": false,
+  "duration_sec": 0.3502171039581299,
+  "reward_history": [
+    18.0,
+    33.0,
+    13.0,
+    38.0,
+    10.0,
+    15.0,
+    14.0,
+    18.0,
+    10.0,
+    38.0
+  ]
+}

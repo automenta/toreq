@@ -1,0 +1,58 @@
+{
+  "start_time": "2025-12-29T09:22:06.913479",
+  "last_updated": "2025-12-29T09:22:23.535873",
+  "results": [
+    {
+      "name": "MNIST Rapid",
+      "status": "error",
+      "metrics": {},
+      "duration_sec": 7.235821485519409,
+      "timestamp": "2025-12-29T09:22:08.913806",
+      "log_path": "logs/discovery/20251229_092206/mnist_rapid.log",
+      "error": null,
+      "insights": [
+        "Exit code: 1"
+      ],
+      "metadata": {
+        "command": "python train.py --dataset mnist --epochs 3 --d-model 64 --rapid",
+        "config": {
+          "name": "MNIST Rapid",
+          "type": "classification",
+          "dataset": "mnist",
+          "epochs": 3,
+          "rapid": true,
+          "success_threshold": 0.8,
+          "priority": "HIGH",
+          "expected_time_min": 5,
+          "hypothesis": "Baseline validation"
+        }
+      }
+    },
+    {
+      "name": "Fashion Rapid",
+      "status": "error",
+      "metrics": {},
+      "duration_sec": 7.385412216186523,
+      "timestamp": "2025-12-29T09:22:16.150160",
+      "log_path": "logs/discovery/20251229_092206/fashion_rapid.log",
+      "error": null,
+      "insights": [
+        "Exit code: 1"
+      ],
+      "metadata": {
+        "command": "python train.py --dataset fashion --epochs 3 --d-model 64 --rapid",
+        "config": {
+          "name": "Fashion Rapid",
+          "type": "classification",
+          "dataset": "fashion",
+          "epochs": 3,
+          "rapid": true,
+          "success_threshold": 0.7,
+          "priority": "HIGH",
+          "expected_time_min": 5,
+          "hypothesis": "Harder than MNIST"
+        }
+      }
+    }
+  ]
+}

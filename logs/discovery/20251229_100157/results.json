@@ -1,0 +1,41 @@
+{
+  "start_time": "2025-12-29T10:01:57.272851",
+  "last_updated": "2025-12-29T10:02:39.473842",
+  "results": [
+    {
+      "name": "MNIST Rapid [SMOKE]",
+      "status": "success",
+      "metrics": {
+        "test_accuracy": 0.9065,
+        "train_accuracy": 0.7649
+      },
+      "duration_sec": 40.200117349624634,
+      "timestamp": "2025-12-29T10:01:59.273288",
+      "log_path": "logs/discovery/20251229_100157/mnist_rapid_[smoke].log",
+      "error": null,
+      "insights": [
+        "Excellent performance"
+      ],
+      "metadata": {
+        "command": "python train.py --dataset mnist --epochs 1 --d-model 32 --rapid --max-iters 5 --n-heads 2 --d-ff 64 --batch-size 32",
+        "config": {
+          "name": "MNIST Rapid [SMOKE]",
+          "type": "classification",
+          "dataset": "mnist",
+          "epochs": 1,
+          "rapid": true,
+          "success_threshold": 0.1,
+          "priority": "HIGH",
+          "expected_time_min": 0.5,
+          "hypothesis": "Baseline validation",
+          "d_model": 32,
+          "n_heads": 2,
+          "d_ff": 64,
+          "max_iters": 5,
+          "batch_size": 32,
+          "episodes": 10
+        }
+      }
+    }
+  ]
+}

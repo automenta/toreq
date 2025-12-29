@@ -1,0 +1,47 @@
+Command: python train.py --dataset svhn --epochs 1 --d-model 32 --rapid --max-iters 5 --n-heads 2 --d-ff 64 --batch-size 32
+Duration: 54.4s
+Exit code: 0
+======================================================================
+[Rapid Mode] Loaded defaults from /home/me/toreq/configs/rapid_mode.yaml
+======================================================================
+Training TorEqProp on SVHN
+======================================================================
+Device: cuda
+Model: d_model=32, n_heads=2, d_ff=64
+Attention: linear, Symmetric: False
+Beta: 0.22, LR: 0.002, Damping: 0.8
+Compile: False, Wandb: False
+======================================================================
+Epoch 0 [0/2290] Loss: 2.5605 Acc: 0.0625 Iters: 5/5
+Epoch 0 [100/2290] Loss: 2.3424 Acc: 0.1562 Iters: 5/5
+Epoch 0 [200/2290] Loss: 2.2525 Acc: 0.1875 Iters: 5/5
+Epoch 0 [300/2290] Loss: 2.3467 Acc: 0.1562 Iters: 5/5
+Epoch 0 [400/2290] Loss: 2.2055 Acc: 0.2812 Iters: 5/5
+Epoch 0 [500/2290] Loss: 2.1458 Acc: 0.1875 Iters: 5/5
+Epoch 0 [600/2290] Loss: 2.3083 Acc: 0.1875 Iters: 5/5
+Epoch 0 [700/2290] Loss: 2.1662 Acc: 0.2812 Iters: 5/5
+Epoch 0 [800/2290] Loss: 2.3648 Acc: 0.0938 Iters: 5/5
+Epoch 0 [900/2290] Loss: 2.2264 Acc: 0.2500 Iters: 5/5
+Epoch 0 [1000/2290] Loss: 2.1832 Acc: 0.1562 Iters: 5/5
+Epoch 0 [1100/2290] Loss: 2.2441 Acc: 0.1562 Iters: 5/5
+Epoch 0 [1200/2290] Loss: 2.3705 Acc: 0.1250 Iters: 5/5
+Epoch 0 [1300/2290] Loss: 2.2705 Acc: 0.2188 Iters: 5/5
+Epoch 0 [1400/2290] Loss: 2.2388 Acc: 0.1875 Iters: 5/5
+Epoch 0 [1500/2290] Loss: 2.2028 Acc: 0.2500 Iters: 5/5
+Epoch 0 [1600/2290] Loss: 2.2114 Acc: 0.2188 Iters: 5/5
+Epoch 0 [1700/2290] Loss: 2.3137 Acc: 0.1250 Iters: 5/5
+Epoch 0 [1800/2290] Loss: 2.2904 Acc: 0.0938 Iters: 5/5
+Epoch 0 [1900/2290] Loss: 2.2190 Acc: 0.2812 Iters: 5/5
+Epoch 0 [2000/2290] Loss: 2.2852 Acc: 0.1562 Iters: 5/5
+Epoch 0 [2100/2290] Loss: 2.3027 Acc: 0.1250 Iters: 5/5
+Epoch 0 [2200/2290] Loss: 2.1611 Acc: 0.2812 Iters: 5/5
+
+Epoch 0 Summary:
+  Train Loss: 2.2503, Train Acc: 0.1838
+  Test Loss: 2.2287, Test Acc: 0.1956
+  Avg Iters: 5.0/5.0
+  Time: 43.9s
+
+======================================================================
+Training complete! Best test accuracy: 0.1956
+======================================================================

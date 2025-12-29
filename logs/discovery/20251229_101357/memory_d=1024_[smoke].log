@@ -1,0 +1,16 @@
+Command: python profile_memory.py --d-model 1024 --max-iters 5 --batch-size 32
+Duration: 4.1s
+Exit code: 0
+======================================================================
+======================================================================
+Memory Profiling: EqProp vs BP
+======================================================================
+ d_model  batch  EqProp (MB)      BP (MB)    Ratio
+----------------------------------------------------------------------
+    1024     32        438.6        340.5     1.29x
+----------------------------------------------------------------------
+
+Interpretation:
+- Ratio < 1.0: EqProp uses LESS memory than BP
+- Ratio > 1.0: EqProp uses MORE memory than BP
+- Target: EqProp should use <50% of BP memory for large models

@@ -1,0 +1,30 @@
+{
+  "task": "parity",
+  "config": {
+    "task": "parity",
+    "seq_len": 8,
+    "n_digits": 4,
+    "n_samples": 10000,
+    "d_model": 32,
+    "n_heads": 2,
+    "d_ff": 64,
+    "epochs": 1,
+    "batch_size": 32,
+    "lr": 0.002,
+    "beta": 0.22,
+    "max_iters": 5,
+    "tol": 0.0001,
+    "damping": 0.8,
+    "analyze_difficulty": false
+  },
+  "best_accuracy": 0.535218253968254,
+  "results": [
+    {
+      "epoch": 0,
+      "train_loss": 0.7149867057419432,
+      "train_accuracy": 0.5038937699680511,
+      "test_loss": 0.6936518653990731,
+      "test_accuracy": 0.535218253968254
+    }
+  ]
+}

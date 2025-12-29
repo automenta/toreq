@@ -1,0 +1,33 @@
+Command: python train.py --dataset svhn --epochs 3 --d-model 64 --rapid
+Duration: 7.6s
+Exit code: 1
+======================================================================
+[Rapid Mode] Loaded config from /home/me/toreq/configs/rapid_mode.yaml
+======================================================================
+Training TorEqProp on MNIST
+======================================================================
+Device: cuda
+Model: d_model=64, n_heads=4, d_ff=256
+Attention: linear, Symmetric: False
+Beta: 0.22, LR: 0.002, Damping: 0.8
+Compile: True, Wandb: False
+======================================================================
+Compiling model with torch.compile...
+Traceback (most recent call last):
+  File "/home/me/toreq/train.py", line 228, in <module>
+    main()
+    ~~~~^^
+  File "/home/me/toreq/train.py", line 190, in main
+    train_metrics = train_epoch(trainer, embedding, train_loader, config, epoch)
+  File "/home/me/toreq/train.py", line 69, in train_epoch
+    metrics = trainer.train_step(x_emb, target)
+  File "/home/me/toreq/src/trainer.py", line 109, in train_step
+    h_free, iters_free = self._solve_free_equilibrium(x)
+                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "/home/me/toreq/src/trainer.py", line 129, in _solve_free_equilibrium
+    h_free, iters = self.solver.solve(self.model, h0, x)
+                    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/home/me/toreq/src/solver.py", line 47, in solve
+    if residual < self.tol:
+       ^^^^^^^^^^^^^^^^^^^
+TypeError: '<' not supported between instances of 'Tensor' and 'str'

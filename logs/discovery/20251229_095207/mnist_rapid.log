@@ -1,0 +1,51 @@
+Command: python train.py --dataset mnist --epochs 3 --d-model 64 --rapid
+Duration: 87.9s
+Exit code: 0
+======================================================================
+[Rapid Mode] Loaded defaults from /home/me/toreq/configs/rapid_mode.yaml
+======================================================================
+Training TorEqProp on MNIST
+======================================================================
+Device: cuda
+Model: d_model=64, n_heads=4, d_ff=256
+Attention: linear, Symmetric: False
+Beta: 0.22, LR: 0.002, Damping: 0.8
+Compile: False, Wandb: False
+======================================================================
+Epoch 0 [0/469] Loss: 2.6491 Acc: 0.1328 Iters: 20/20
+Epoch 0 [100/469] Loss: 2.2582 Acc: 0.2109 Iters: 20/20
+Epoch 0 [200/469] Loss: 2.0475 Acc: 0.4375 Iters: 20/20
+Epoch 0 [300/469] Loss: 1.3787 Acc: 0.6719 Iters: 20/20
+Epoch 0 [400/469] Loss: 0.9498 Acc: 0.7109 Iters: 20/20
+
+Epoch 0 Summary:
+  Train Loss: 1.7148, Train Acc: 0.4568
+  Test Loss: 0.8052, Test Acc: 0.7392
+  Avg Iters: 20.0/20.0
+  Time: 27.4s
+Epoch 1 [0/469] Loss: 0.8237 Acc: 0.7812 Iters: 20/20
+Epoch 1 [100/469] Loss: 0.7487 Acc: 0.7344 Iters: 20/20
+Epoch 1 [200/469] Loss: 0.5631 Acc: 0.7969 Iters: 20/20
+Epoch 1 [300/469] Loss: 0.4937 Acc: 0.8438 Iters: 20/20
+Epoch 1 [400/469] Loss: 0.5763 Acc: 0.8594 Iters: 20/20
+
+Epoch 1 Summary:
+  Train Loss: 0.6244, Train Acc: 0.8130
+  Test Loss: 0.4623, Test Acc: 0.8701
+  Avg Iters: 20.0/20.0
+  Time: 26.9s
+Epoch 2 [0/469] Loss: 0.4673 Acc: 0.8750 Iters: 20/20
+Epoch 2 [100/469] Loss: 0.4872 Acc: 0.8672 Iters: 20/20
+Epoch 2 [200/469] Loss: 0.5049 Acc: 0.8281 Iters: 20/20
+Epoch 2 [300/469] Loss: 0.4014 Acc: 0.8828 Iters: 20/20
+Epoch 2 [400/469] Loss: 0.4122 Acc: 0.8750 Iters: 20/20
+
+Epoch 2 Summary:
+  Train Loss: 0.4198, Train Acc: 0.8802
+  Test Loss: 0.3654, Test Acc: 0.8952
+  Avg Iters: 20.0/20.0
+  Time: 27.1s
+
+======================================================================
+Training complete! Best test accuracy: 0.8952
+======================================================================
