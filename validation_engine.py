@@ -284,7 +284,7 @@ class MultiPhaseScheduler:
                         continue
                     
                     for seed in seeds:
-                        # Format command
+                        # Format command with per-size max_iters for effort matching
                         cmd = template.format(
                             dataset=exp.get("dataset", "mnist"),
                             env=exp.get("env", "CartPole-v1"),
@@ -292,6 +292,7 @@ class MultiPhaseScheduler:
                             episodes=exp.get("episodes", 300),
                             d_model=d_model,
                             hidden_dim=hidden_dim,
+                            max_iters=size.get("max_iters", 20),  # Effort-matched iterations
                             seed=seed
                         )
                         

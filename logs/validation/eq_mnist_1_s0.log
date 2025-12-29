@@ -1,0 +1,40 @@
+Command: python train.py --dataset mnist --epochs 1 --seed 0 --d-model 64 --beta 0.05 --damping 0.7 --max-iters 100 --tol 0.0001 --lr 0.002 --attention-type linear --update-mode mse_proxy
+Config: {
+  "algorithm": "eqprop",
+  "beta": 0.05,
+  "damping": 0.7,
+  "max_iters": 100,
+  "tol": 0.0001,
+  "attention_type": "linear",
+  "symmetric": false,
+  "update_mode": "mse_proxy",
+  "d_model": 64,
+  "lr": 0.002
+}
+Duration: 25.4s
+Exit code: 0
+======================================================================
+======================================================================
+Training TorEqProp on MNIST
+======================================================================
+Device: cuda
+Model: d_model=64, n_heads=4, d_ff=512
+Attention: linear, Symmetric: False
+Beta: 0.05, LR: 0.002, Damping: 0.7
+Compile: False, Wandb: False
+======================================================================
+Epoch 0 [0/469] Loss: 2.4140 Acc: 0.0781 Iters: 100/90
+Epoch 0 [100/469] Loss: 0.4125 Acc: 0.8750 Iters: 35/5
+Epoch 0 [200/469] Loss: 0.2944 Acc: 0.8984 Iters: 25/5
+Epoch 0 [300/469] Loss: 0.1500 Acc: 0.9609 Iters: 25/5
+Epoch 0 [400/469] Loss: 0.3839 Acc: 0.9062 Iters: 40/5
+
+Epoch 0 Summary:
+  Train Loss: 0.4631, Train Acc: 0.8604
+  Test Loss: 0.2851, Test Acc: 0.9131
+  Avg Iters: 30.7/5.3
+  Time: 19.3s
+
+======================================================================
+Training complete! Best test accuracy: 0.9131
+======================================================================

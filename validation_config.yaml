@@ -226,40 +226,41 @@ size_comparison:
   seeds: [0, 1, 2]
   
   # Model sizes: micro→tiny→small→medium→large (5 sizes for fine-grained analysis)
+  # max_iters calibrated to match BP's computational effort at each size
   sizes:
     - name: micro
       display_name: "Micro"
       d_model: 16
-      hidden_dim: 8   # For RL
-      max_iters: 15   # Fewer iters for small models
+      hidden_dim: 8
+      max_iters: 100  # Very small models: use many iterations to match BP effort
       priority: 1
       
     - name: tiny
       display_name: "Tiny"
       d_model: 32
       hidden_dim: 16
-      max_iters: 20
+      max_iters: 80   # Increased to match BP training time
       priority: 2
       
     - name: small
       display_name: "Small"
       d_model: 64
       hidden_dim: 32
-      max_iters: 20
+      max_iters: 60   # Increased for fair comparison
       priority: 3
       
     - name: medium
       display_name: "Medium"  
       d_model: 128
       hidden_dim: 64
-      max_iters: 25
+      max_iters: 50   # Balance between speed and convergence
       priority: 4
       
     - name: large
       display_name: "Large"
       d_model: 256
       hidden_dim: 128
-      max_iters: 30
+      max_iters: 50   # From Phase 1: matches BP's training time
       priority: 5
   
   # Experiments to run at each size (expanded for more insights)
@@ -294,13 +295,14 @@ size_comparison:
       metric: avg_reward
       success_threshold: -100
   
-  # Command templates by type (with tuned max_iters)
+  # Command templates by type (with per-size tuned max_iters and optimal beta)
+  # Note: max_iters calibrated per size to match BP computational effort
   command_templates:
     classification:
-      eqprop: "python train.py --dataset {dataset} --epochs {epochs} --d-model {d_model} --max-iters 20 --seed {seed}"
+      eqprop: "python train.py --dataset {dataset} --epochs {epochs} --d-model {d_model} --max-iters {max_iters} --beta 0.22 --seed {seed}"
       bp: "python train_mnist_bp.py --dataset {dataset} --epochs {epochs} --d-model {d_model} --seed {seed}"
     rl:
-      eqprop: "python train_rl.py --env {env} --episodes {episodes} --hidden-dim {hidden_dim} --max-iters 15 --seed {seed}"
+      eqprop: "python train_rl.py --env {env} --episodes {episodes} --hidden-dim {hidden_dim} --max-iters {max_iters} --seed {seed}"
       bp: "python train_rl.py --env {env} --episodes {episodes} --hidden-dim {hidden_dim} --seed {seed} --use-bp"
 
 # ============================================================================
@@ -355,3 +357,38 @@ dashboard:
   refresh_interval: 1.0
   show_current_output: true
   max_output_lines: 10
+
+# ============================================================================
+# Hyperparameter Optimization Settings
+# ============================================================================
+hyperopt:
+  enabled: true
+  strategy: random  # grid, random
+  n_trials: 50      # per algorithm per task
+  
+  eqprop_search_space:
+    beta: [0.05, 0.1, 0.15, 0.2, 0.22, 0.25, 0.3]
+    damping: [0.7, 0.8, 0.9, 0.95]
+    max_iters: [10, 20, 50, 100]
+    tol: [0.0001, 0.00001, 0.000001]
+    attention_type: [linear]
+    symmetric: [false, true]
+    update_mode: [mse_proxy, vector_field]
+    d_model: [64, 128, 256]
+    lr: [0.0005, 0.001, 0.002]
+
+  baseline_search_space:
+    lr: [0.0001, 0.0005, 0.001, 0.002, 0.005]
+    optimizer: [adam, adamw]
+    d_model: [64, 128, 256]
+    weight_decay: [0, 0.0001, 0.001]
+    scheduler: [none, cosine]
+
+  cost_metrics:
+    track_time: true
+    track_memory: true
+    track_iterations: true
+
+  matching:
+    strategy: time_matched  # param_matched, time_matched, size_matched
+    tolerance: 0.1  # 10% matching tolerance
