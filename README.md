@@ -84,6 +84,17 @@ See [Results](docs/05-results.md) for full details.
 
 ---
 
+## Validated Results
+
+<!-- VALIDATION_CLAIMS_START -->
+*Run `python validation_engine.py` to begin autonomous validation*
+<!-- VALIDATION_CLAIMS_END -->
+
+<!-- VALIDATION_RESULTS_START -->
+<!-- VALIDATION_RESULTS_END -->
+
+---
+
 ## Project Structure
 
 ```

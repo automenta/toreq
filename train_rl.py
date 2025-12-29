@@ -210,6 +210,7 @@ def main():
     parser.add_argument("--eval-interval", type=int, default=50, help="Evaluation interval")
     parser.add_argument("--max-iters", type=int, default=10, help="Max equilibrium iterations")
     parser.add_argument("--damping", type=float, default=0.8, help="Damping factor")
+    parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducibility")
     
     args = parser.parse_args()
     
@@ -223,10 +224,19 @@ def main():
     print(f"Environment: {args.env}")
     print(f"Episodes: {args.episodes}")
     print(f"Policy: {'BP Baseline' if args.use_bp else 'Equilibrium Policy'}")
+    if args.seed is not None:
+        print(f"Seed: {args.seed}")
     print(f"{'='*70}\n")
+    
+    # Set seeds for reproducibility
+    if args.seed is not None:
+        torch.manual_seed(args.seed)
+        np.random.seed(args.seed)
     
     # Create environment
     env = gym.make(args.env)
+    if args.seed is not None:
+        env.reset(seed=args.seed)
     obs_dim = env.observation_space.shape[0]
     action_dim = env.action_space.n
     
