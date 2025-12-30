@@ -96,8 +96,8 @@ class EqPropSearchSpace(SearchSpace):
     # Update mechanism: how gradients are approximated
     update_mode: List[str] = field(default_factory=lambda: ["mse_proxy", "vector_field"])
     
-    # Model size
-    d_model: List[int] = field(default_factory=lambda: [64, 128, 256])
+    # Model size: now includes tiny sizes for micro tasks
+    d_model: List[int] = field(default_factory=lambda: [8, 16, 32, 64, 128, 256])
     
     # Learning rate
     lr: List[float] = field(default_factory=lambda: [5e-4, 1e-3, 2e-3])
@@ -181,8 +181,8 @@ class BaselineSearchSpace(SearchSpace):
     # Optimizer choice
     optimizer: List[str] = field(default_factory=lambda: ["adam", "adamw"])
     
-    # Model size (match EqProp options)
-    d_model: List[int] = field(default_factory=lambda: [64, 128, 256])
+    # Model size (match EqProp options - includes tiny sizes)
+    d_model: List[int] = field(default_factory=lambda: [8, 16, 32, 64, 128, 256])
     
     # Weight decay for AdamW
     weight_decay: List[float] = field(default_factory=lambda: [0, 1e-4, 1e-3])
