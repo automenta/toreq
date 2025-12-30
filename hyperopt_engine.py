@@ -42,6 +42,12 @@ try:
 except ImportError:
     HAS_SCIPY = False
 
+try:
+    from tqdm import tqdm
+    HAS_TQDM = True
+except ImportError:
+    HAS_TQDM = False
+
 from statistics import StatisticalAnalyzer, ComparisonResult
 
 # Simple experiment ID generation (was from validation_db)
@@ -255,8 +261,15 @@ class CostMetrics:
     param_count: int = 0
     flops_estimate: float = 0.0
     
+    # Convergence tracking
+    convergence_curve: List[float] = field(default_factory=list)  # Per-epoch performance
+    train_losses: List[float] = field(default_factory=list)
+    train_accs: List[float] = field(default_factory=list)
+    
     def to_dict(self) -> Dict[str, float]:
-        return asdict(self)
+        d = asdict(self)
+        # Convert lists to JSON-serializable format
+        return d
 
 
 @dataclass
@@ -621,6 +634,59 @@ class CostAwareEvaluator:
         # Rough estimate: embedding + transformer block + head
         # Actual: d*784 + 4*d*d + 2*d*d*4 + d*10
         return int(d * 784 + 4 * d * d + 8 * d * d + d * 10)
+
+
+class TimeBudgetEvaluator(CostAwareEvaluator):
+    """Evaluator that matches trials by time budget for fair comparison.
+    
+    Instead of fixing epochs, this gives both algorithms the same wall-clock
+    time budget. This ensures fair comparison when algorithms have different
+    per-epoch costs (e.g., EqProp vs BP).
+    """
+    
+    def __init__(self, logs_dir: Path, time_budget_seconds: float = 60.0):
+        super().__init__(logs_dir)
+        self.time_budget = time_budget_seconds
+    
+    def evaluate(self, trial: HyperOptTrial, epochs: int = None,
+                 callback=None, show_progress: bool = True) -> HyperOptTrial:
+        """Run trial within time budget instead of fixed epochs.
+        
+        Dynamically estimates epochs based on time per epoch and budget.
+        """
+        if epochs is None:
+            # Estimate epochs from time budget
+            # Start with 1 epoch to measure time, then extrapolate
+            epochs = self._estimate_epochs_for_budget(trial)
+        
+        return super().evaluate(trial, epochs, callback, show_progress)
+    
+    def _estimate_epochs_for_budget(self, trial: HyperOptTrial) -> int:
+        """Estimate how many epochs fit in time budget."""
+        # Heuristics based on task and model size
+        d_model = trial.config.get("d_model", 128)
+        task = trial.task.lower()
+        
+        # Rough estimates (seconds per epoch)
+        if task in ["xor", "xor3", "and", "or", "majority", "identity"]:
+            time_per_epoch = 1.0 * (d_model / 16)  # ~1s for d=16
+        elif task == "tiny_lm":
+            time_per_epoch = 2.0 * (d_model / 16)
+        elif task == "mnist":
+            time_per_epoch = 10.0 * (d_model / 64)
+        elif task in ["parity", "copy", "addition"]:
+            time_per_epoch = 5.0 * (d_model / 64)
+        elif task in ["cartpole", "acrobot", "mountaincar", "lunarlander"]:
+            time_per_epoch = 3.0 * (d_model / 64)  # Converted from episodes
+        else:
+            time_per_epoch = 10.0
+        
+        # Additional factor for algorithm
+        if trial.algorithm == "eqprop":
+            time_per_epoch *= 0.5  # EqProp typically faster
+        
+        epochs = max(1, int(self.time_budget / time_per_epoch))
+        return epochs
 
 
 # =============================================================================
@@ -1071,14 +1137,28 @@ class HyperOptEngine:
         print("🔋 Phase 1: EqProp Hyperparameter Search")
         print("-" * 70)
         
-        for i, cfg in enumerate(eqprop_configs):
+        # Create iterator with progress bar if available
+        if HAS_TQDM:
+            trial_iterator = tqdm(
+                list(enumerate(eqprop_configs)),
+                desc="EqProp Trials",
+                total=len(eqprop_configs) * len(seeds),
+                unit="trial"
+            )
+        else:
+            trial_iterator = enumerate(eqprop_configs)
+        
+        for i, cfg in trial_iterator:
             for seed in seeds:
                 trial_id = f"eq_{task}_{i}_s{seed}"
                 
                 # Skip if already complete
                 existing = self.db.get_trial(trial_id)
                 if existing and existing.status == "complete":
-                    print(f"  ⏭️  {trial_id} already complete, skipping")
+                    if HAS_TQDM:
+                        trial_iterator.set_postfix_str(f"⏭️  {trial_id} (cached)")
+                    else:
+                        print(f"  ⏭️  {trial_id} already complete, skipping")
                     continue
                 
                 trial = HyperOptTrial(
@@ -1089,9 +1169,10 @@ class HyperOptEngine:
                     seed=seed,
                 )
                 
-                print(f"\n📊 Trial {i+1}/{len(eqprop_configs)} seed {seed}: {trial_id}")
-                print(f"   Config: β={cfg['beta']}, damping={cfg['damping']}, "
-                      f"iters={cfg['max_iters']}, d={cfg['d_model']}")
+                if not headless:
+                    print(f"\n📊 Trial {i+1}/{len(eqprop_configs)} seed {seed}: {trial_id}")
+                    print(f"   Config: β={cfg['beta']}, damping={cfg['damping']}, "
+                          f"iters={cfg['max_iters']}, d={cfg['d_model']}")
                 
                 def callback(line):
                     if not headless:
@@ -1101,8 +1182,13 @@ class HyperOptEngine:
                 self.db.add_trial(trial)
                 
                 status = "✅" if trial.status == "complete" else "❌"
-                print(f"   {status} Performance: {trial.performance:.4f}, "
-                      f"Time: {trial.cost.wall_time_seconds:.1f}s")
+                perf_str = f"{trial.performance:.4f}"
+                time_str = f"{trial.cost.wall_time_seconds:.1f}s"
+                
+                if HAS_TQDM:
+                    trial_iterator.set_postfix_str(f"{status} {perf_str} @ {time_str}")
+                elif not headless:
+                    print(f"   {status} Performance: {perf_str}, Time: {time_str}")
         
         # Run baseline trials
         print("\n" + "-" * 70)
@@ -1165,6 +1251,14 @@ class HyperOptEngine:
             
             # Use Sobol sequence for better space coverage
             return self._sobol_sample(space, n)
+        
+        elif strategy == "lhs":
+            if not HAS_SCIPY:
+                print("⚠️  scipy not available, falling back to random sampling")
+                return [space.sample(rng) for _ in range(n)]
+            
+            # Use Latin Hypercube Sampling
+            return self._lhs_sample(space, n)
         
         elif strategy == "random":
             return [space.sample(rng) for _ in range(n)]
@@ -1358,49 +1452,83 @@ class HyperOptEngine:
         Sobol sequences provide more uniform coverage of hyperparameter space
         than random sampling, which is critical for broad surveys.
         """
-        # Get a representative sample to extract hyperparameter info
-        sample_config = space.sample()
-        
-        # Extract continuous and categorical dimensions
-        continuous_params = []
-        categorical_params = {}
-        
-        for key, value in sample_config.items():
-            if key == "algorithm":
-                continue
-            if isinstance(value, (int, float)):
-                continuous_params.append(key)
-            else:
-                categorical_params[key] = value
-        
-        if not continuous_params:
-            # No continuous params, fall back to random
+        # Get all grid configs
+        all_grid = space.grid()
+        if not all_grid or len(all_grid) == 0:
             return [space.sample() for _ in range(n)]
         
-        # Generate Sobol samples for continuous dimensions
-        sampler = qmc.Sobol(d=len(continuous_params), scramble=True, seed=42)
+        # Get representative sample
+        sample_config = all_grid[0]
+        
+        # Identify parameter types and ranges
+        param_info = {}
+        for key in sample_config.keys():
+            if key == "algorithm":
+                continue
+            values = sorted(set(cfg[key] for cfg in all_grid if key in cfg))
+            param_info[key] = values
+        
+        if not param_info:
+            return [space.sample() for _ in range(n)]
+        
+        # Generate Sobol samples
+        param_names = list(param_info.keys())
+        sampler = qmc.Sobol(d=len(param_names), scramble=True, seed=42)
         samples = sampler.random(n)
         
-        # Convert to hyperparameter space
+        # Map to hyperparameter space
         configs = []
         for sample in samples:
-            config = sample_config.copy()  # Start with template
-            
-            # Map Sobol samples [0, 1] to hyperparameter ranges
-            all_grid = space.grid()
-            if not all_grid:
+            config = {"algorithm": sample_config["algorithm"]}
+            for i, param_name in enumerate(param_names):
+                values = param_info[param_name]
+                # Map [0,1] to discrete index
+                idx = int(sample[i] * len(values))
+                idx = min(idx, len(values) - 1)
+                config[param_name] = values[idx]
+            configs.append(config)
+        
+        return configs
+    
+    def _lhs_sample(self, space: SearchSpace, n: int) -> List[Dict]:
+        """Latin Hypercube Sampling for better coverage.
+        
+        LHS ensures each parameter range is evenly divided and sampled.
+        Complementary to Sobol - use both for best coverage.
+        """
+        if not HAS_SCIPY:
+            return [space.sample() for _ in range(n)]
+        
+        all_grid = space.grid()
+        if not all_grid:
+            return [space.sample() for _ in range(n)]
+        
+        # Get parameter info
+        sample_config = all_grid[0]
+        param_info = {}
+        for key in sample_config.keys():
+            if key == "algorithm":
                 continue
-            
-            # For each continuous parameter, quantize to available values
-            for i, param in enumerate(continuous_params):
-                # Get unique values for this parameter
-                values = sorted(set(cfg[param] for cfg in all_grid if param in cfg))
-                if values:
-                    # Map [0,1] to index in values
-                    idx = int(sample[i] * len(values))
-                    idx = min(idx, len(values) - 1)  # Clamp
-                    config[param] = values[idx]
-            
+            values = sorted(set(cfg[key] for cfg in all_grid if key in cfg))
+            param_info[key] = values
+        
+        if not param_info:
+            return [space.sample() for _ in range(n)]
+        
+        # Generate LHS samples
+        param_names = list(param_info.keys())
+        sampler = qmc.LatinHypercube(d=len(param_names), seed=42)
+        samples = sampler.random(n)
+        
+        # Map to hyperparameter space
+        configs = []
+        for sample in samples:
+            config = {"algorithm": sample_config["algorithm"]}
+            for i, param_name in enumerate(param_names):
+                values = param_info[param_name]
+                idx = int(sample[i] * len(values))
+                idx = min(idx, len(values) - 1)
+                config[param_name] = values[idx]
             configs.append(config)
         
         return configs
@@ -1643,8 +1771,8 @@ Supported Tasks:
     parser.add_argument("--n-trials", type=int, default=10,
                        help="Number of trials per algorithm")
     parser.add_argument("--strategy", type=str, default="random",
-                       choices=["grid", "random", "sobol"],
-                       help="Search strategy (sobol recommended for broad survey)")
+                       choices=["grid", "random", "sobol", "lhs"],
+                       help="Search strategy (sobol/lhs recommended for broad survey)")
     parser.add_argument("--epochs", type=int, default=3,
                        help="Training epochs per trial")
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2],
