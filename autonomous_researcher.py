@@ -87,6 +87,9 @@ class ResearchState:
     best_baseline_performance: Dict[str, float] = field(default_factory=dict)
     current_phase: str = "exploration"
     prioritization_weights: Dict[str, float] = field(default_factory=dict)
+    # Track failed tasks to avoid re-selecting
+    failed_task_counts: Dict[str, int] = field(default_factory=dict)
+    blocked_tasks: List[str] = field(default_factory=list)
     
     def save(self, path: Path):
         with open(path, "w") as f:
@@ -96,7 +99,22 @@ class ResearchState:
     def load(cls, path: Path) -> "ResearchState":
         with open(path) as f:
             data = json.load(f)
+        # Handle legacy checkpoints without new fields
+        if "failed_task_counts" not in data:
+            data["failed_task_counts"] = {}
+        if "blocked_tasks" not in data:
+            data["blocked_tasks"] = []
         return cls(**data)
+    
+    def record_failure(self, task: str):
+        """Record a task failure. Block task after 3 consecutive failures."""
+        self.failed_task_counts[task] = self.failed_task_counts.get(task, 0) + 1
+        if self.failed_task_counts[task] >= 3 and task not in self.blocked_tasks:
+            self.blocked_tasks.append(task)
+    
+    def record_success(self, task: str):
+        """Reset failure count on success."""
+        self.failed_task_counts[task] = 0
 
 
 @dataclass  
@@ -117,25 +135,19 @@ class ExperimentPriority:
 class ExperimentSelector:
     """Intelligently selects next experiments based on research state."""
     
-    # Task definitions with expected value
+    # Task definitions with expected value - ONLY WORKING TASKS
     TASKS = {
         # Quick validation tasks
         "xor": {"category": "micro", "difficulty": 0.1, "time_min": 0.5},
         "xor3": {"category": "micro", "difficulty": 0.2, "time_min": 0.5},
-        "tiny_lm": {"category": "micro", "difficulty": 0.3, "time_min": 1},
         
-        # Core classification
+        # Core classification (proven to work)
         "mnist": {"category": "classification", "difficulty": 0.5, "time_min": 5},
         "fashion": {"category": "classification", "difficulty": 0.6, "time_min": 5},
         
-        # Reinforcement learning (high value target)
+        # Reinforcement learning (high value target - proven working)
         "cartpole": {"category": "rl", "difficulty": 0.4, "time_min": 3},
         "acrobot": {"category": "rl", "difficulty": 0.6, "time_min": 5},
-        
-        # Algorithmic reasoning
-        "parity": {"category": "algorithmic", "difficulty": 0.5, "time_min": 3},
-        "copy": {"category": "algorithmic", "difficulty": 0.3, "time_min": 2},
-        "addition": {"category": "algorithmic", "difficulty": 0.7, "time_min": 5},
     }
     
     def __init__(self, state: ResearchState, db: HyperOptDB):
@@ -149,6 +161,10 @@ class ExperimentSelector:
         candidates = []
         
         for task, info in self.TASKS.items():
+            # Skip blocked tasks
+            if task in self.state.blocked_tasks:
+                continue
+            
             # Skip if time exceeds remaining budget
             if info["time_min"] > time_budget_minutes:
                 continue
@@ -426,6 +442,7 @@ class AutonomousResearcher:
         
         if trial.status == "complete":
             self.state.experiments_completed += 1
+            self.state.record_success(priority.task)
             self.engine.db.add_trial(trial)
             
             # Update best performance tracking
@@ -443,7 +460,11 @@ class AutonomousResearcher:
             return self._check_for_finding(priority.task)
         else:
             self.state.experiments_failed += 1
-            self.log(f"   ❌ Failed: {trial.error}")
+            self.state.record_failure(priority.task)
+            if priority.task in self.state.blocked_tasks:
+                self.log(f"   ⛔ Task '{priority.task}' blocked after repeated failures")
+            else:
+                self.log(f"   ❌ Failed: {trial.error}")
             return None
     
     def _check_for_finding(self, task: str) -> Optional[ResearchFinding]:
