@@ -1,10 +1,25 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from typing import List, Dict, Callable
 import json
 from pathlib import Path
-from ..hyperopt.core import HyperOptTrial
-from ..hyperopt.engine import HyperOptEngine
+
+# Optional matplotlib import
+try:
+    import matplotlib.pyplot as plt
+    HAS_MATPLOTLIB = True
+except ImportError:
+    HAS_MATPLOTLIB = False
+
+# Handle both package and standalone imports
+try:
+    from ..hyperopt.core import HyperOptTrial
+    from ..hyperopt.engine import HyperOptEngine
+except ImportError:
+    try:
+        from hyperopt.core import HyperOptTrial
+        from hyperopt.engine import HyperOptEngine
+    except ImportError:
+        from hyperopt_engine import HyperOptTrial, HyperOptEngine
 
 class ScalingAnalyzer:
     """Automates the study of Neural Scaling Laws for EqProp.

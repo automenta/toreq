@@ -130,4 +130,43 @@ python -m hyperopt.cli --report --task mnist
 
 ---
 
+## 7. Evidence-Based Validation (The "Undeniable Results" System)
+
+To produce results that are **complete, clear, and undeniable**, use the `ValidationPipeline`.
+
+### How it Works
+1.  **`StatisticalVerdict`**: Auto-computes p-values (Mann-Whitney U or Welch's t), Bootstrap 95% Confidence Intervals, and Cohen's d effect size.
+2.  **`EvidenceArchiver`**: Stores raw data in JSON format with SHA-256 checksums to prove data integrity.
+3.  **`ReportGenerator`**: Creates publication-ready Markdown reports with Executive Summary and detailed tables.
+
+### Usage
+```python
+from hyperopt.validation import ValidationPipeline
+
+pipeline = ValidationPipeline()
+
+# Prepare your claim data (from hyperopt DB or experiments)
+claims = [
+    {
+        "claim": "EqProp > BP on Adversarial Robustness",
+        "eqprop": [0.92, 0.91, 0.93, 0.90, 0.88],  # Raw accuracy under attack
+        "baseline": [0.75, 0.78, 0.72, 0.80, 0.76]
+    },
+    # ... more claims
+]
+
+# Run validation
+verdicts = pipeline.validate_claims(claims)
+
+# Generate a publication-ready report
+pipeline.generate_report(verdicts, title="Adversarial Robustness Study")
+```
+**Output**: A Markdown file in `reports/` with:
+*   **Executive Summary Table**: Claim, Verdict, p-value, Effect Size.
+*   **Detailed Breakdowns**: Per-claim statistics.
+*   **Methodology Section**: Documents the statistical methods used.
+*   **Archived Evidence**: Raw data saved with checksums in `evidence_archive/`.
+
+---
+
 *Happy Discovering!*
