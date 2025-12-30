@@ -655,40 +655,225 @@ class AutonomousResearcher:
         return "\n".join(lines)
     
     def _generate_final_report(self):
-        """Generate comprehensive final report."""
+        """Generate comprehensive final report with full analysis."""
         report_path = self.output_dir / "final_report.md"
         
+        # Gather all trials from database
+        all_trials = self.engine.db.get_trials(status="complete")
+        eq_trials = [t for t in all_trials if t.algorithm == "eqprop"]
+        bp_trials = [t for t in all_trials if t.algorithm == "bp"]
+        
+        # Organize by task
+        tasks = sorted(set(t.task for t in all_trials))
+        
         with open(report_path, "w") as f:
-            f.write(f"""# Autonomous Research Report
+            # Header
+            f.write(f"""# 🔬 TorEqProp Autonomous Research Report
 
-## Summary
+> **Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+> **System**: Autonomous Research System v1.0
 
-- **Total Runtime**: {self.state.total_runtime_hours:.2f} hours
-- **Experiments Completed**: {self.state.experiments_completed}
-- **Experiments Failed**: {self.state.experiments_failed}
-- **Significant Findings**: {len(self.state.findings)}
+---
 
-## Findings
+## 📊 Executive Summary
+
+| Metric | Value |
+|--------|-------|
+| **Total Runtime** | {self.state.total_runtime_hours:.2f} hours |
+| **Experiments Completed** | {self.state.experiments_completed} |
+| **Experiments Failed** | {self.state.experiments_failed} |
+| **Success Rate** | {self.state.experiments_completed / max(1, self.state.experiments_completed + self.state.experiments_failed) * 100:.1f}% |
+| **Tasks Explored** | {len(tasks)} |
+| **Significant Findings** | {len(self.state.findings)} |
+
+---
+
+## 🎯 Key Results by Task
 
 """)
+            # Per-task analysis
+            for task in tasks:
+                task_eq = [t for t in eq_trials if t.task == task]
+                task_bp = [t for t in bp_trials if t.task == task]
+                
+                f.write(f"### {task.upper()}\n\n")
+                
+                if task_eq and task_bp:
+                    # Best configs
+                    best_eq = max(task_eq, key=lambda t: t.performance)
+                    best_bp = max(task_bp, key=lambda t: t.performance)
+                    
+                    f.write(f"| Algorithm | Best Score | Trials | Avg Time |\n")
+                    f.write(f"|-----------|------------|--------|----------|\n")
+                    
+                    eq_avg_time = np.mean([t.cost.wall_time_seconds for t in task_eq]) if task_eq else 0
+                    bp_avg_time = np.mean([t.cost.wall_time_seconds for t in task_bp]) if task_bp else 0
+                    
+                    f.write(f"| 🔋 EqProp | **{best_eq.performance:.4f}** | {len(task_eq)} | {eq_avg_time:.1f}s |\n")
+                    f.write(f"| ⚡ BP | **{best_bp.performance:.4f}** | {len(task_bp)} | {bp_avg_time:.1f}s |\n\n")
+                    
+                    # Statistical comparison
+                    if len(task_eq) >= 2 and len(task_bp) >= 2:
+                        eq_perfs = [t.performance for t in task_eq]
+                        bp_perfs = [t.performance for t in task_bp]
+                        
+                        try:
+                            result = self.stats.compare(eq_perfs, bp_perfs, "EqProp", "BP")
+                            
+                            winner = "🔋 EqProp" if result.algo1_mean > result.algo2_mean else "⚡ BP"
+                            sig = "✅ Significant" if result.is_significant else "❌ Not significant"
+                            
+                            f.write(f"**Statistical Analysis**:\n")
+                            f.write(f"- Winner: {winner} ({result.improvement_pct:+.2f}%)\n")
+                            f.write(f"- p-value: {result.p_value:.4f} ({sig})\n")
+                            f.write(f"- Effect size (Cohen's d): {result.cohens_d:.2f}\n\n")
+                        except:
+                            pass
+                    
+                    # Best EqProp config details
+                    f.write(f"**Best EqProp Configuration**:\n```yaml\n")
+                    for k, v in sorted(best_eq.config.items()):
+                        f.write(f"{k}: {v}\n")
+                    f.write(f"```\n\n")
+                    
+                elif task_eq:
+                    best_eq = max(task_eq, key=lambda t: t.performance)
+                    f.write(f"- EqProp only: Best = {best_eq.performance:.4f} ({len(task_eq)} trials)\n\n")
+                elif task_bp:
+                    best_bp = max(task_bp, key=lambda t: t.performance)
+                    f.write(f"- BP only: Best = {best_bp.performance:.4f} ({len(task_bp)} trials)\n\n")
+                
+                f.write("---\n\n")
             
-            for finding_dict in self.state.findings:
-                finding = ResearchFinding(**finding_dict)
-                f.write(finding.to_markdown())
-                f.write("\n")
+            # Findings section
+            f.write("## 🔍 Significant Findings\n\n")
             
+            if self.state.findings:
+                for i, finding_dict in enumerate(sorted(
+                    self.state.findings, 
+                    key=lambda x: x.get("significance", 0), 
+                    reverse=True
+                ), 1):
+                    finding = ResearchFinding(**finding_dict)
+                    f.write(f"### Finding {i}: {finding.title}\n\n")
+                    f.write(f"**Category**: {finding.category.title()}\n")
+                    f.write(f"**Significance**: {finding.significance:.0%}\n")
+                    f.write(f"**Timestamp**: {finding.timestamp}\n\n")
+                    f.write(f"{finding.description}\n\n")
+                    f.write(f"**Evidence**:\n")
+                    for k, v in finding.evidence.items():
+                        if isinstance(v, float):
+                            f.write(f"- {k}: {v:.4f}\n")
+                        else:
+                            f.write(f"- {k}: {v}\n")
+                    f.write("\n")
+            else:
+                f.write("*No statistically significant findings yet. Continue running to accumulate more data.*\n\n")
+            
+            # Overall comparison
+            f.write("## 📈 Overall Comparison\n\n")
+            
+            if eq_trials and bp_trials:
+                all_eq_perfs = [t.performance for t in eq_trials]
+                all_bp_perfs = [t.performance for t in bp_trials]
+                
+                f.write(f"| Metric | EqProp | BP |\n")
+                f.write(f"|--------|--------|----|\n")
+                f.write(f"| Mean Performance | {np.mean(all_eq_perfs):.4f} | {np.mean(all_bp_perfs):.4f} |\n")
+                f.write(f"| Std Dev | {np.std(all_eq_perfs):.4f} | {np.std(all_bp_perfs):.4f} |\n")
+                f.write(f"| Best | {np.max(all_eq_perfs):.4f} | {np.max(all_bp_perfs):.4f} |\n")
+                f.write(f"| Worst | {np.min(all_eq_perfs):.4f} | {np.min(all_bp_perfs):.4f} |\n")
+                f.write(f"| Total Trials | {len(eq_trials)} | {len(bp_trials)} |\n\n")
+                
+                # Wins by task
+                eq_wins = 0
+                bp_wins = 0
+                ties = 0
+                for task in tasks:
+                    eq_best = self.state.best_eqprop_performance.get(task, 0)
+                    bp_best = self.state.best_baseline_performance.get(task, 0)
+                    if eq_best > bp_best:
+                        eq_wins += 1
+                    elif bp_best > eq_best:
+                        bp_wins += 1
+                    else:
+                        ties += 1
+                
+                f.write(f"**Task Wins**: EqProp {eq_wins} | BP {bp_wins} | Ties {ties}\n\n")
+            
+            # System performance
+            f.write("## ⚙️ System Performance\n\n")
+            f.write(f"| Metric | Value |\n")
+            f.write(f"|--------|-------|\n")
+            f.write(f"| Experiments/Hour | {self.state.experiments_completed / max(0.01, self.state.total_runtime_hours):.1f} |\n")
+            f.write(f"| Blocked Tasks | {len(self.state.blocked_tasks)} |\n")
+            if self.state.blocked_tasks:
+                f.write(f"| Blocked List | {', '.join(self.state.blocked_tasks)} |\n")
+            f.write(f"\n")
+            
+            # Recommendations
+            f.write("## 💡 Recommendations\n\n")
+            
+            recommendations = []
+            
+            # Analyze which tasks need more exploration
+            for task in tasks:
+                task_eq = [t for t in eq_trials if t.task == task]
+                task_bp = [t for t in bp_trials if t.task == task]
+                
+                if len(task_eq) < 5 or len(task_bp) < 5:
+                    recommendations.append(f"**Run more trials on {task}**: Only {len(task_eq)} EqProp and {len(task_bp)} BP trials. Need ≥5 each for statistical significance.")
+                
+                if task_eq and task_bp:
+                    best_eq = max(t.performance for t in task_eq)
+                    best_bp = max(t.performance for t in task_bp)
+                    if best_eq > best_bp * 1.1:
+                        recommendations.append(f"**Scale up {task}**: EqProp shows {((best_eq/best_bp)-1)*100:.0f}% advantage. Try longer training.")
+            
+            if not recommendations:
+                recommendations.append("**Continue running**: More data will improve statistical power and reveal patterns.")
+            
+            for rec in recommendations[:5]:
+                f.write(f"- {rec}\n")
+            
+            f.write(f"""
+---
+
+## 📋 Appendix: All Trial Configurations
+
+<details>
+<summary>Click to expand full trial list</summary>
+
+### EqProp Trials ({len(eq_trials)} total)
+
+| Task | Performance | Time | β | d_model | damping |
+|------|-------------|------|---|---------|---------|
+""")
+            for t in sorted(eq_trials, key=lambda x: x.performance, reverse=True)[:20]:
+                beta = t.config.get('beta', 'N/A')
+                d_model = t.config.get('d_model', 'N/A')
+                damping = t.config.get('damping', 'N/A')
+                f.write(f"| {t.task} | {t.performance:.4f} | {t.cost.wall_time_seconds:.1f}s | {beta} | {d_model} | {damping} |\n")
+
+            f.write(f"""
+### BP Trials ({len(bp_trials)} total)
+
+| Task | Performance | Time | lr | d_model | optimizer |
+|------|-------------|------|----|---------|-----------|
+""")
+            for t in sorted(bp_trials, key=lambda x: x.performance, reverse=True)[:20]:
+                lr = t.config.get('lr', 'N/A')
+                d_model = t.config.get('d_model', 'N/A')
+                opt = t.config.get('optimizer', 'N/A')
+                f.write(f"| {t.task} | {t.performance:.4f} | {t.cost.wall_time_seconds:.1f}s | {lr} | {d_model} | {opt} |\n")
+
             f.write("""
-## Recommendations
-
-Based on the autonomous research, the following areas warrant further investigation:
-
-1. **Tasks where EqProp excels** - Consider extended training and hyperparameter refinement
-2. **Tasks where BP excels** - Investigate why EqProp underperforms, potential algorithm improvements
-3. **High-variance results** - Run additional seeds for statistical power
+</details>
 
 ---
 
 *Report generated by TorEqProp Autonomous Research System*
+*For questions or issues, see the research log at `autonomous_research/researcher.log`*
 """)
         
         self.log(f"📄 Final report: {report_path}")
