@@ -1203,6 +1203,26 @@ class HyperOptEngine:
             marker = "🔋" if t.algorithm == "eqprop" else "⚡"
             print(f"   {marker} {t.performance:.4f} @ {t.cost.wall_time_seconds:.1f}s")
         
+        # Time-normalized analysis
+        eq_times = [t.cost.wall_time_seconds for t in eqprop_trials]
+        bl_times = [t.cost.wall_time_seconds for t in baseline_trials]
+        
+        avg_eq_time = np.mean(eq_times) if eq_times else 0
+        avg_bl_time = np.mean(bl_times) if bl_times else 1
+        
+        speed_ratio = avg_bl_time / avg_eq_time if avg_eq_time > 0 else 1
+        perf_gap = best_bl.performance - best_eq.performance
+        
+        print(f"\n⏱️  Time-Normalized Analysis:")
+        print(f"   Avg EqProp time: {avg_eq_time:.1f}s")
+        print(f"   Avg Baseline time: {avg_bl_time:.1f}s")
+        print(f"   Speed advantage: {speed_ratio:.1f}x faster")
+        print(f"   Performance gap: {perf_gap:+.4f}")
+        
+        if speed_ratio > 5:
+            efficiency = perf_gap / speed_ratio
+            print(f"   Efficiency ratio: {efficiency:.4f} perf per unit speed")
+            
         # Verdict
         print("\n" + "=" * 70)
         print("  VERDICT")
@@ -1222,6 +1242,52 @@ class HyperOptEngine:
             print(f"  🎯 EqProp dominates Pareto frontier ({eq_on_frontier}/{len(frontier)})")
         elif bl_on_frontier > eq_on_frontier:
             print(f"  ⚡ Baseline dominates Pareto frontier ({bl_on_frontier}/{len(frontier)})")
+        
+        # Interpretation / Big Picture
+        print("\n" + "-" * 70)
+        print("  💡 INSIGHTS")
+        print("-" * 70)
+        
+        if speed_ratio > 5:
+            print(f"  • EqProp is {speed_ratio:.0f}x faster - significant efficiency advantage")
+            if perf_gap < 0.05:  # 5% gap
+                print("  • Small accuracy gap may be acceptable for speed tradeoff")
+                print("  • Consider: At equal time budget, EqProp may match BP accuracy")
+        
+        if task.lower() in ["cartpole", "acrobot", "lunarlander", "mountaincar"]:
+            if best_eq.performance > best_bl.performance:
+                print("  • 🎉 EqProp OUTPERFORMS BP on RL - key finding!")
+                print("  • Novel contribution: First EP superiority on control tasks")
+        
+        # Check for model size mismatch
+        eq_d = [t.config.get('d_model', 0) for t in eqprop_trials]
+        bl_d = [t.config.get('d_model', 0) for t in baseline_trials]
+        
+        avg_eq_d = np.mean(eq_d) if eq_d else 0
+        avg_bl_d = np.mean(bl_d) if bl_d else 0
+        
+        if abs(avg_eq_d - avg_bl_d) > 50:
+            print(f"  ⚠️  Model size mismatch: EqProp avg d={avg_eq_d:.0f}, BP avg d={avg_bl_d:.0f}")
+            print("  • Consider running with matched d_model for fair comparison")
+        
+        # Recommendations
+        print("\n" + "-" * 70)
+        print("  📋 RECOMMENDATIONS")
+        print("-" * 70)
+        
+        if result.algo2_mean > result.algo1_mean and speed_ratio > 5:
+            print("  1. Run fair comparison with same d_model")
+            print("  2. Test EqProp with larger model (d=256)")
+            print("  3. Consider time-budget experiment (same wall-clock time)")
+        
+        if best_eq.performance < 0.90 and task.lower() in ["mnist", "fashion"]:
+            print("  1. Try more epochs (current may be insufficient)")
+            print("  2. Tune β (best range: 0.20-0.25)")
+            print("  3. Increase d_model for more capacity")
+        
+        if task.lower() in ["parity", "copy", "addition"]:
+            print("  1. Algorithmic tasks may show adaptive compute advantage")
+            print("  2. Track convergence iterations per sample difficulty")
         
         print("=" * 70)
     

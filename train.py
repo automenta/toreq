@@ -208,8 +208,8 @@ def main():
         if config.wandb:
             wandb.log(all_metrics)
         
-        # Save best model
-        if test_metrics["test/accuracy"] > best_acc:
+        # Save best model (only if checkpointing enabled)
+        if config.save_checkpoint and test_metrics["test/accuracy"] > best_acc:
             best_acc = test_metrics["test/accuracy"]
             Path("checkpoints").mkdir(exist_ok=True)
             torch.save({
@@ -219,6 +219,8 @@ def main():
                 "output_head": output_head.state_dict(),
                 "test_acc": best_acc
             }, f"checkpoints/best_{config.dataset}.pt")
+        elif test_metrics["test/accuracy"] > best_acc:
+            best_acc = test_metrics["test/accuracy"]
     
     print("\n" + "="*70)
     print(f"Training complete! Best test accuracy: {best_acc:.4f}")

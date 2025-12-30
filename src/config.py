@@ -49,10 +49,12 @@ class TorEqPropConfig:
     wandb_project: str = "toreqprop"
     wandb_entity: Optional[str] = None
     log_interval: int = 100
+    save_checkpoint: bool = False  # Disable checkpoint saving for fair timing
     
     # System
     device: str = ""  # Will be set in __post_init__
     num_workers: int = 4
+    persistent_workers: bool = True  # Keep data loading workers alive between epochs
     
     def to_dict(self):
         """Convert config to dict for logging."""
