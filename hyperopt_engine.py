@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-TorEqProp Competitive Hyperparameter Optimization Engine
+TorEqProp Competitive Hyperparameter Optimization Engine (Optuna-based)
 
 A systematic framework for finding optimal configurations of both EqProp and
 baseline algorithms, then comparing them fairly across multiple cost dimensions.
 
 Features:
-- SearchSpace definitions for all algorithm hyperparameters
+- Optuna-based search and pruning
 - Cost-aware evaluation (time, memory, iterations, parameters)
 - Fair trial matching for apples-to-apples comparison
 - Pareto frontier analysis for multi-objective optimization
@@ -14,9 +14,7 @@ Features:
 
 Usage:
     python hyperopt_engine.py              # Run full optimization
-    python hyperopt_engine.py --strategy random --n-trials 50
-    python hyperopt_engine.py --smoke-test --n-trials 2
-    python hyperopt_engine.py --report     # Generate report from existing results
+    python hyperopt_engine.py --n-trials 50
 """
 
 import argparse
@@ -37,6 +35,14 @@ import numpy as np
 from collections import defaultdict
 
 try:
+    import optuna
+    from optuna.trial import TrialState
+    HAS_OPTUNA = True
+except ImportError:
+    HAS_OPTUNA = False
+    print("Warning: Optuna not found. Please install with 'pip install optuna'")
+
+try:
     from scipy.stats import qmc
     HAS_SCIPY = True
 except ImportError:
@@ -47,206 +53,6 @@ try:
     HAS_TQDM = True
 except ImportError:
     HAS_TQDM = False
-
-from statistics import StatisticalAnalyzer, ComparisonResult
-
-# Simple experiment ID generation (was from validation_db)
-def generate_experiment_id():
-    """Generate unique experiment ID."""
-    return f"exp_{int(time.time())}_{random.randint(1000, 9999)}"
-
-
-# =============================================================================
-# SEARCH SPACE DEFINITIONS
-# =============================================================================
-
-@dataclass
-class SearchSpace(ABC):
-    """Base class for hyperparameter search spaces."""
-    
-    @abstractmethod
-    def sample(self, rng: random.Random = None) -> Dict[str, Any]:
-        """Sample a random configuration from the search space."""
-        pass
-    
-    @abstractmethod
-    def grid(self) -> List[Dict[str, Any]]:
-        """Return all configurations in the grid."""
-        pass
-    
-    @abstractmethod
-    def size(self) -> int:
-        """Return the size of the search space."""
-        pass
-
-
-@dataclass
-class EqPropSearchSpace(SearchSpace):
-    """Search space for EqProp-specific hyperparameters.
-    
-    Covers all tunable aspects of Equilibrium Propagation:
-    - Nudge strength (β)
-    - Equilibrium solver parameters (damping, iterations, tolerance)
-    - Architecture choices (attention type, symmetric mode)
-    - Update mechanisms
-    """
-    
-    # Nudge strength: CRITICAL - varies by task! 
-    # β=0.22 previously assumed optimal, but experiments show higher β often works better
-    beta: List[float] = field(default_factory=lambda: [0.1, 0.2, 0.25, 0.3, 0.35, 0.4, 0.5])
-    
-    # Damping: controls convergence speed vs stability tradeoff
-    damping: List[float] = field(default_factory=lambda: [0.7, 0.8, 0.9, 0.95])
-    
-    # Max iterations: compute budget for equilibrium finding
-    max_iters: List[int] = field(default_factory=lambda: [10, 20, 50, 100])
-    
-    # Convergence tolerance
-    tol: List[float] = field(default_factory=lambda: [1e-4, 1e-5, 1e-6])
-    
-    # Attention type: linear required for symmetric mode
-    attention_type: List[str] = field(default_factory=lambda: ["linear"])
-    
-    # Symmetric mode: theoretical guarantees vs practical performance
-    symmetric: List[bool] = field(default_factory=lambda: [False, True])
-    
-    # Update mechanism: how gradients are approximated
-    update_mode: List[str] = field(default_factory=lambda: ["mse_proxy", "vector_field"])
-    
-    # Model size: now includes tiny sizes for micro tasks
-    d_model: List[int] = field(default_factory=lambda: [8, 16, 32, 64, 128, 256])
-    
-    # Learning rate
-    lr: List[float] = field(default_factory=lambda: [5e-4, 1e-3, 2e-3])
-    
-    def sample(self, rng: random.Random = None) -> Dict[str, Any]:
-        """Sample a random EqProp configuration."""
-        if rng is None:
-            rng = random.Random()
-        
-        config = {
-            "algorithm": "eqprop",
-            "beta": rng.choice(self.beta),
-            "damping": rng.choice(self.damping),
-            "max_iters": rng.choice(self.max_iters),
-            "tol": rng.choice(self.tol),
-            "attention_type": rng.choice(self.attention_type),
-            "symmetric": rng.choice(self.symmetric),
-            "update_mode": rng.choice(self.update_mode),
-            "d_model": rng.choice(self.d_model),
-            "lr": rng.choice(self.lr),
-        }
-        
-        # Symmetric mode requires linear attention
-        if config["symmetric"] and config["attention_type"] != "linear":
-            config["attention_type"] = "linear"
-        
-        return config
-    
-    def grid(self) -> List[Dict[str, Any]]:
-        """Generate full grid of EqProp configurations."""
-        import itertools
-        
-        configs = []
-        for beta, damping, max_iters, tol, attn, sym, mode, d_model, lr in itertools.product(
-            self.beta, self.damping, self.max_iters, self.tol,
-            self.attention_type, self.symmetric, self.update_mode,
-            self.d_model, self.lr
-        ):
-            # Skip invalid: symmetric requires linear attention
-            if sym and attn != "linear":
-                continue
-            
-            configs.append({
-                "algorithm": "eqprop",
-                "beta": beta,
-                "damping": damping,
-                "max_iters": max_iters,
-                "tol": tol,
-                "attention_type": attn,
-                "symmetric": sym,
-                "update_mode": mode,
-                "d_model": d_model,
-                "lr": lr,
-            })
-        
-        return configs
-    
-    def size(self) -> int:
-        """Approximate size of search space."""
-        # Account for symmetric requiring linear attention
-        valid_sym_combos = len(self.attention_type)  # symmetric=True only with linear
-        valid_nonsym_combos = len(self.attention_type)  # symmetric=False with any
-        
-        base = (len(self.beta) * len(self.damping) * len(self.max_iters) * 
-                len(self.tol) * len(self.update_mode) * len(self.d_model) * len(self.lr))
-        
-        return base * (valid_sym_combos + valid_nonsym_combos)
-
-
-@dataclass
-class BaselineSearchSpace(SearchSpace):
-    """Search space for baseline (BP) hyperparameters.
-    
-    Covers standard backpropagation training parameters to ensure
-    fair comparison with optimized EqProp.
-    """
-    
-    # Learning rate
-    lr: List[float] = field(default_factory=lambda: [1e-4, 5e-4, 1e-3, 2e-3, 5e-3])
-    
-    # Optimizer choice
-    optimizer: List[str] = field(default_factory=lambda: ["adam", "adamw"])
-    
-    # Model size (match EqProp options - includes tiny sizes)
-    d_model: List[int] = field(default_factory=lambda: [8, 16, 32, 64, 128, 256])
-    
-    # Weight decay for AdamW
-    weight_decay: List[float] = field(default_factory=lambda: [0, 1e-4, 1e-3])
-    
-    # Scheduler
-    scheduler: List[str] = field(default_factory=lambda: ["none", "cosine"])
-    
-    def sample(self, rng: random.Random = None) -> Dict[str, Any]:
-        """Sample a random baseline configuration."""
-        if rng is None:
-            rng = random.Random()
-        
-        config = {
-            "algorithm": "bp",
-            "lr": rng.choice(self.lr),
-            "optimizer": rng.choice(self.optimizer),
-            "d_model": rng.choice(self.d_model),
-            "weight_decay": rng.choice(self.weight_decay),
-            "scheduler": rng.choice(self.scheduler),
-        }
-        
-        return config
-    
-    def grid(self) -> List[Dict[str, Any]]:
-        """Generate full grid of baseline configurations."""
-        import itertools
-        
-        configs = []
-        for lr, opt, d_model, wd, sched in itertools.product(
-            self.lr, self.optimizer, self.d_model, self.weight_decay, self.scheduler
-        ):
-            configs.append({
-                "algorithm": "bp",
-                "lr": lr,
-                "optimizer": opt,
-                "d_model": d_model,
-                "weight_decay": wd,
-                "scheduler": sched,
-            })
-        
-        return configs
-    
-    def size(self) -> int:
-        """Size of baseline search space."""
-        return (len(self.lr) * len(self.optimizer) * len(self.d_model) * 
-                len(self.weight_decay) * len(self.scheduler))
-
 
 # =============================================================================
 # TRIAL AND COST TRACKING
@@ -364,7 +170,7 @@ class CostAwareEvaluator:
         
         # Show progress indicator
         if show_progress:
-            print(f"   ⏳ Running", end="", flush=True)
+            print(f"   ⏳ Running {trial.task} ({trial.algorithm})...", end="", flush=True)
         
         try:
             env = os.environ.copy()
@@ -453,8 +259,8 @@ class CostAwareEvaluator:
                    f"--d-model {cfg['d_model']} --beta {cfg['beta']} "
                    f"--damping {cfg['damping']} --max-iters {cfg['max_iters']} "
                    f"--tol {cfg['tol']} --lr {cfg['lr']} "
-                   f"--attention-type {cfg['attention_type']} "
-                   f"--update-mode {cfg['update_mode']}")
+                   f"--attention-type {cfg.get('attention_type', 'linear')} "
+                   f"--update-mode {cfg.get('update_mode', 'mse_proxy')}")
             if cfg.get("symmetric", False):
                 cmd += " --symmetric"
             if cfg.get("rapid", False):
@@ -488,7 +294,7 @@ class CostAwareEvaluator:
                    f"--d-model {cfg['d_model']} --lr {cfg['lr']} "
                    f"--beta {cfg['beta']} --damping {cfg['damping']} "
                    f"--max-iters {cfg['max_iters']} --tol {cfg['tol']} "
-                   f"--update-mode {cfg['update_mode']}")
+                   f"--update-mode {cfg.get('update_mode', 'mse_proxy')}")
         
         # RL tasks
         elif task in ["cartpole-v1", "cartpole", "acrobot-v1", "acrobot", 
@@ -626,7 +432,7 @@ class CostAwareEvaluator:
                     total_iters += int(float(match.group(1)))
                 except:
                     pass
-        return total_iters if total_iters > 0 else 1  # Default 1 for BP
+        return total_iters if total_iters > 0 else 0
     
     def _estimate_params(self, config: Dict) -> int:
         """Estimate parameter count from config."""
@@ -636,1194 +442,174 @@ class CostAwareEvaluator:
         return int(d * 784 + 4 * d * d + 8 * d * d + d * 10)
 
 
-class TimeBudgetEvaluator(CostAwareEvaluator):
-    """Evaluator that matches trials by time budget for fair comparison.
-    
-    Instead of fixing epochs, this gives both algorithms the same wall-clock
-    time budget. This ensures fair comparison when algorithms have different
-    per-epoch costs (e.g., EqProp vs BP).
-    """
-    
-    def __init__(self, logs_dir: Path, time_budget_seconds: float = 60.0):
-        super().__init__(logs_dir)
-        self.time_budget = time_budget_seconds
-    
-    def evaluate(self, trial: HyperOptTrial, epochs: int = None,
-                 callback=None, show_progress: bool = True) -> HyperOptTrial:
-        """Run trial within time budget instead of fixed epochs.
-        
-        Dynamically estimates epochs based on time per epoch and budget.
-        """
-        if epochs is None:
-            # Estimate epochs from time budget
-            # Start with 1 epoch to measure time, then extrapolate
-            epochs = self._estimate_epochs_for_budget(trial)
-        
-        return super().evaluate(trial, epochs, callback, show_progress)
-    
-    def _estimate_epochs_for_budget(self, trial: HyperOptTrial) -> int:
-        """Estimate how many epochs fit in time budget."""
-        # Heuristics based on task and model size
-        d_model = trial.config.get("d_model", 128)
-        task = trial.task.lower()
-        
-        # Rough estimates (seconds per epoch)
-        if task in ["xor", "xor3", "and", "or", "majority", "identity"]:
-            time_per_epoch = 1.0 * (d_model / 16)  # ~1s for d=16
-        elif task == "tiny_lm":
-            time_per_epoch = 2.0 * (d_model / 16)
-        elif task == "mnist":
-            time_per_epoch = 10.0 * (d_model / 64)
-        elif task in ["parity", "copy", "addition"]:
-            time_per_epoch = 5.0 * (d_model / 64)
-        elif task in ["cartpole", "acrobot", "mountaincar", "lunarlander"]:
-            time_per_epoch = 3.0 * (d_model / 64)  # Converted from episodes
-        else:
-            time_per_epoch = 10.0
-        
-        # Additional factor for algorithm
-        if trial.algorithm == "eqprop":
-            time_per_epoch *= 0.5  # EqProp typically faster
-        
-        epochs = max(1, int(self.time_budget / time_per_epoch))
-        return epochs
-
-
 # =============================================================================
-# TRIAL MATCHING FOR FAIR COMPARISON
+# OPTUNA ENGINE
 # =============================================================================
 
-@dataclass
-class MatchedPair:
-    """A matched pair of EqProp and baseline trials."""
-    eqprop_trial: HyperOptTrial
-    baseline_trial: HyperOptTrial
-    match_quality: float  # 0-1, how well matched
-    match_criteria: str  # What was matched on
+class OptunaHyperoptEngine:
+    """Hyperparameter optimization engine using Optuna."""
     
-    def performance_diff(self) -> float:
-        """EqProp performance - Baseline performance."""
-        return self.eqprop_trial.performance - self.baseline_trial.performance
-    
-    def time_ratio(self) -> float:
-        """Time ratio: EqProp / Baseline."""
-        if self.baseline_trial.cost.wall_time_seconds > 0:
-            return (self.eqprop_trial.cost.wall_time_seconds / 
-                    self.baseline_trial.cost.wall_time_seconds)
-        return 1.0
-
-
-class TrialMatcher:
-    """Match EqProp trials to baseline trials for fair comparison.
-    
-    Matching strategies:
-    - time_matched: Similar training time
-    - param_matched: Same parameter count
-    - size_matched: Same model size (d_model)
-    """
-    
-    def __init__(self, strategy: str = "time_matched", tolerance: float = 0.1):
-        self.strategy = strategy
-        self.tolerance = tolerance
-    
-    def match(self, eqprop_trials: List[HyperOptTrial],
-              baseline_trials: List[HyperOptTrial]) -> List[MatchedPair]:
-        """Find matched pairs between EqProp and baseline trials."""
+    def __init__(self, 
+                 storage_url: str = "sqlite:///toreq_hyperopt.db",
+                 study_name: str = "toreq_optimization",
+                 logs_dir: str = "logs/hyperopt"):
+        self.storage_url = storage_url
+        self.study_name = study_name
+        self.logs_dir = Path(logs_dir)
+        self.evaluator = CostAwareEvaluator(self.logs_dir)
         
-        if self.strategy == "time_matched":
-            return self._match_by_time(eqprop_trials, baseline_trials)
-        elif self.strategy == "param_matched":
-            return self._match_by_params(eqprop_trials, baseline_trials)
-        elif self.strategy == "size_matched":
-            return self._match_by_size(eqprop_trials, baseline_trials)
-        else:
-            raise ValueError(f"Unknown matching strategy: {self.strategy}")
-    
-    def _match_by_time(self, eqprop: List[HyperOptTrial],
-                       baseline: List[HyperOptTrial]) -> List[MatchedPair]:
-        """Match trials with similar training time."""
-        pairs = []
-        used_baseline = set()
-        
-        for eq in eqprop:
-            if eq.status != "complete":
-                continue
+        # Ensure Optuna is available
+        if not HAS_OPTUNA:
+            raise ImportError("Optuna is not installed. Run 'pip install optuna' first.")
             
-            best_match = None
-            best_diff = float("inf")
-            
-            for bl in baseline:
-                if bl.trial_id in used_baseline or bl.status != "complete":
-                    continue
-                
-                time_diff = abs(eq.cost.wall_time_seconds - bl.cost.wall_time_seconds)
-                relative_diff = time_diff / max(eq.cost.wall_time_seconds, 1)
-                
-                if relative_diff < self.tolerance and relative_diff < best_diff:
-                    best_match = bl
-                    best_diff = relative_diff
-            
-            if best_match:
-                quality = 1.0 - best_diff
-                pairs.append(MatchedPair(eq, best_match, quality, "time_matched"))
-                used_baseline.add(best_match.trial_id)
+    def run_study(self, 
+                  n_trials: int = 20, 
+                  task: str = "mnist", 
+                  algorithm: str = "eqprop",
+                  epochs: int = 5):
+        """Run an Optuna study."""
         
-        return pairs
-    
-    def _match_by_params(self, eqprop: List[HyperOptTrial],
-                         baseline: List[HyperOptTrial]) -> List[MatchedPair]:
-        """Match trials with similar parameter count."""
-        pairs = []
-        used_baseline = set()
+        study_name = f"{self.study_name}_{task}_{algorithm}"
         
-        for eq in eqprop:
-            if eq.status != "complete":
-                continue
-            
-            best_match = None
-            best_diff = float("inf")
-            
-            for bl in baseline:
-                if bl.trial_id in used_baseline or bl.status != "complete":
-                    continue
-                
-                param_diff = abs(eq.cost.param_count - bl.cost.param_count)
-                relative_diff = param_diff / max(eq.cost.param_count, 1)
-                
-                if relative_diff < self.tolerance and relative_diff < best_diff:
-                    best_match = bl
-                    best_diff = relative_diff
-            
-            if best_match:
-                quality = 1.0 - best_diff
-                pairs.append(MatchedPair(eq, best_match, quality, "param_matched"))
-                used_baseline.add(best_match.trial_id)
-        
-        return pairs
-    
-    def _match_by_size(self, eqprop: List[HyperOptTrial],
-                       baseline: List[HyperOptTrial]) -> List[MatchedPair]:
-        """Match trials with same model size (d_model)."""
-        pairs = []
-        
-        # Group by d_model
-        eq_by_size = defaultdict(list)
-        bl_by_size = defaultdict(list)
-        
-        for eq in eqprop:
-            if eq.status == "complete":
-                d = eq.config.get("d_model", 128)
-                eq_by_size[d].append(eq)
-        
-        for bl in baseline:
-            if bl.status == "complete":
-                d = bl.config.get("d_model", 128)
-                bl_by_size[d].append(bl)
-        
-        # Match best from each size bucket
-        for d_model in eq_by_size:
-            if d_model not in bl_by_size:
-                continue
-            
-            # Sort by performance
-            eq_sorted = sorted(eq_by_size[d_model], 
-                              key=lambda t: t.performance, reverse=True)
-            bl_sorted = sorted(bl_by_size[d_model],
-                              key=lambda t: t.performance, reverse=True)
-            
-            # Match best with best, second with second, etc.
-            for eq, bl in zip(eq_sorted, bl_sorted):
-                pairs.append(MatchedPair(eq, bl, 1.0, f"size_matched_d{d_model}"))
-        
-        return pairs
-
-
-# =============================================================================
-# PARETO ANALYSIS
-# =============================================================================
-
-class ParetoAnalyzer:
-    """Find Pareto-optimal configurations across multiple objectives."""
-    
-    @staticmethod
-    def is_dominated(trial1: HyperOptTrial, trial2: HyperOptTrial,
-                     objectives: List[str]) -> bool:
-        """Check if trial1 is dominated by trial2.
-        
-        trial1 is dominated if trial2 is better or equal in all objectives
-        and strictly better in at least one.
-        """
-        better_in_one = False
-        
-        for obj in objectives:
-            val1 = ParetoAnalyzer._get_objective_value(trial1, obj)
-            val2 = ParetoAnalyzer._get_objective_value(trial2, obj)
-            
-            # Higher is better for performance, lower is better for costs
-            if obj == "performance":
-                if val2 < val1:
-                    return False  # trial2 worse in this objective
-                if val2 > val1:
-                    better_in_one = True
-            else:  # cost objectives: lower is better
-                if val2 > val1:
-                    return False
-                if val2 < val1:
-                    better_in_one = True
-        
-        return better_in_one
-    
-    @staticmethod
-    def _get_objective_value(trial: HyperOptTrial, obj: str) -> float:
-        if obj == "performance":
-            return trial.performance
-        elif obj == "time":
-            return trial.cost.wall_time_seconds
-        elif obj == "memory":
-            return trial.cost.peak_memory_mb
-        elif obj == "params":
-            return trial.cost.param_count
-        elif obj == "iterations":
-            return trial.cost.total_iterations
-        else:
-            return 0.0
-    
-    @staticmethod
-    def pareto_frontier(trials: List[HyperOptTrial],
-                       objectives: List[str] = None) -> List[HyperOptTrial]:
-        """Find Pareto-optimal trials.
-        
-        Default objectives: maximize performance, minimize time.
-        """
-        if objectives is None:
-            objectives = ["performance", "time"]
-        
-        # Filter to complete trials
-        complete = [t for t in trials if t.status == "complete"]
-        
-        frontier = []
-        for candidate in complete:
-            dominated = False
-            for other in complete:
-                if other.trial_id == candidate.trial_id:
-                    continue
-                if ParetoAnalyzer.is_dominated(candidate, other, objectives):
-                    dominated = True
-                    break
-            
-            if not dominated:
-                frontier.append(candidate)
-        
-        return frontier
-    
-    @staticmethod
-    def compute_hypervolume(frontier: List[HyperOptTrial],
-                           reference_point: Tuple[float, float],
-                           objectives: List[str] = None) -> float:
-        """Compute hypervolume indicator for Pareto frontier quality.
-        
-        Higher hypervolume = better frontier.
-        Reference point should be worse than all frontier points.
-        """
-        if objectives is None:
-            objectives = ["performance", "time"]
-        
-        if len(objectives) != 2:
-            raise ValueError("Hypervolume only implemented for 2 objectives")
-        
-        if not frontier:
-            return 0.0
-        
-        # Sort by first objective (performance, descending)
-        sorted_frontier = sorted(
-            frontier,
-            key=lambda t: ParetoAnalyzer._get_objective_value(t, objectives[0]),
-            reverse=True
-        )
-        
-        # Compute hypervolume using inclusion-exclusion
-        hypervolume = 0.0
-        prev_obj2 = reference_point[1]
-        
-        for trial in sorted_frontier:
-            obj1 = ParetoAnalyzer._get_objective_value(trial, objectives[0])
-            obj2 = ParetoAnalyzer._get_objective_value(trial, objectives[1])
-            
-            # For performance (higher better), time (lower better)
-            width = obj1 - reference_point[0]  # Performance contribution
-            height = prev_obj2 - obj2          # Time contribution
-            
-            if width > 0 and height > 0:
-                hypervolume += width * height
-            
-            prev_obj2 = min(prev_obj2, obj2)
-        
-        return hypervolume
-
-
-# =============================================================================
-# HYPEROPT DATABASE
-# =============================================================================
-
-class HyperOptDB:
-    """Database for storing hyperopt trials."""
-    
-    def __init__(self, db_path: str):
-        self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.trials: Dict[str, HyperOptTrial] = {}
-        self._load()
-    
-    def _load(self):
-        """Load trials from disk."""
-        if self.db_path.exists():
-            try:
-                with open(self.db_path) as f:
-                    content = f.read().strip()
-                    if not content:
-                        return  # Empty file
-                    data = json.loads(content)
-                    for trial_data in data.get("trials", []):
-                        trial = HyperOptTrial.from_dict(trial_data)
-                        self.trials[trial.trial_id] = trial
-            except (json.JSONDecodeError, KeyError) as e:
-                print(f"Warning: Could not load DB from {self.db_path}: {e}")
-                self.trials = {}
-    
-    def _save(self):
-        """Save trials to disk."""
-        data = {
-            "trials": [t.to_dict() for t in self.trials.values()],
-            "last_updated": datetime.now().isoformat(),
-        }
-        with open(self.db_path, "w") as f:
-            json.dump(data, f, indent=2)
-    
-    def add_trial(self, trial: HyperOptTrial):
-        """Add or update a trial."""
-        self.trials[trial.trial_id] = trial
-        self._save()
-    
-    def get_trial(self, trial_id: str) -> Optional[HyperOptTrial]:
-        """Get a trial by ID."""
-        return self.trials.get(trial_id)
-    
-    def get_trials(self, algorithm: str = None, task: str = None,
-                   status: str = None) -> List[HyperOptTrial]:
-        """Get trials matching filters."""
-        result = list(self.trials.values())
-        
-        if algorithm:
-            result = [t for t in result if t.algorithm == algorithm]
-        if task:
-            result = [t for t in result if t.task == task]
-        if status:
-            result = [t for t in result if t.status == status]
-        
-        return result
-    
-    def get_best_trial(self, algorithm: str, task: str) -> Optional[HyperOptTrial]:
-        """Get best-performing trial for algorithm and task."""
-        trials = self.get_trials(algorithm=algorithm, task=task, status="complete")
-        if not trials:
-            return None
-        return max(trials, key=lambda t: t.performance)
-
-
-# =============================================================================
-# MAIN HYPEROPT ENGINE
-# =============================================================================
-
-class HyperOptEngine:
-    """Main hyperparameter optimization engine.
-    
-    Orchestrates:
-    1. Search space definition
-    2. Trial sampling/generation
-    3. Cost-aware evaluation
-    4. Fair trial matching
-    5. Pareto analysis and reporting
-    """
-    
-    def __init__(self, config_path: str = "validation_config.yaml"):
-        self.config = self._load_config(config_path)
-        self.db = HyperOptDB(self.config.get("output", {}).get(
-            "hyperopt_db", "data/hyperopt_results.json"))
-        
-        self.eqprop_space = self._create_eqprop_space()
-        self.baseline_space = self._create_baseline_space()
-        
-        logs_dir = Path(self.config.get("output", {}).get(
-            "logs_dir", "logs/hyperopt"))
-        self.evaluator = CostAwareEvaluator(logs_dir)
-        
-        self.matcher = TrialMatcher(
-            strategy=self.config.get("hyperopt", {}).get(
-                "matching", {}).get("strategy", "time_matched"),
-            tolerance=self.config.get("hyperopt", {}).get(
-                "matching", {}).get("tolerance", 0.1)
-        )
-        
-        self.analyzer = StatisticalAnalyzer()
-    
-    def _load_config(self, path: str) -> dict:
-        """Load configuration from YAML."""
-        if Path(path).exists():
-            with open(path) as f:
-                return yaml.safe_load(f)
-        return {}
-    
-    def _create_eqprop_space(self) -> EqPropSearchSpace:
-        """Create EqProp search space from config."""
-        cfg = self.config.get("hyperopt", {}).get("eqprop_search_space", {})
-        return EqPropSearchSpace(
-            beta=cfg.get("beta", [0.05, 0.1, 0.15, 0.2, 0.22, 0.25, 0.3, 0.5]),
-            damping=cfg.get("damping", [0.7, 0.8, 0.9, 0.95]),
-            max_iters=cfg.get("max_iters", [10, 20, 50, 100]),
-            tol=cfg.get("tol", [1e-4, 1e-5, 1e-6]),
-            attention_type=cfg.get("attention_type", ["linear"]),
-            symmetric=cfg.get("symmetric", [False, True]),
-            update_mode=cfg.get("update_mode", ["mse_proxy", "vector_field"]),
-            d_model=cfg.get("d_model", [64, 128, 256]),
-            lr=cfg.get("lr", [5e-4, 1e-3, 2e-3]),
-        )
-    
-    def _create_baseline_space(self) -> BaselineSearchSpace:
-        """Create baseline search space from config."""
-        cfg = self.config.get("hyperopt", {}).get("baseline_search_space", {})
-        return BaselineSearchSpace(
-            lr=cfg.get("lr", [1e-4, 5e-4, 1e-3, 2e-3, 5e-3]),
-            optimizer=cfg.get("optimizer", ["adam", "adamw"]),
-            d_model=cfg.get("d_model", [64, 128, 256]),
-            weight_decay=cfg.get("weight_decay", [0, 1e-4, 1e-3]),
-            scheduler=cfg.get("scheduler", ["none", "cosine"]),
-        )
-    
-    def run(self, task: str = "mnist", n_trials: int = 50,
-            strategy: str = "random", seeds: List[int] = None,
-            epochs: int = 5, headless: bool = False):
-        """Run hyperparameter optimization.
-        
-        Args:
-            task: Task to optimize on (mnist, cartpole, etc.)
-            n_trials: Number of trials per algorithm
-            strategy: Search strategy (grid, random, bayesian)
-            seeds: Random seeds to use
-            epochs: Training epochs per trial
-            headless: Suppress output
-        """
-        print("\n" + "=" * 70)
-        print("  TorEqProp Competitive Hyperparameter Optimization")
-        print("=" * 70)
-        print(f"  Task: {task}")
-        print(f"  Strategy: {strategy}")
-        print(f"  Trials per algorithm: {n_trials}")
-        print(f"  Epochs per trial: {epochs}")
-        print(f"  EqProp search space: {self.eqprop_space.size()} configs")
-        print(f"  Baseline search space: {self.baseline_space.size()} configs")
-        print("=" * 70)
-        
-        if seeds is None:
-            seeds = [0, 1, 2]
-        
-        rng = random.Random(42)
-        
-        # Generate trial configurations
-        eqprop_configs = self._sample_configs(self.eqprop_space, n_trials, strategy, rng)
-        baseline_configs = self._sample_configs(self.baseline_space, n_trials, strategy, rng)
-        
-        # Run EqProp trials
-        print("\n" + "-" * 70)
-        print("🔋 Phase 1: EqProp Hyperparameter Search")
-        print("-" * 70)
-        
-        # Create iterator with progress bar if available
-        if HAS_TQDM:
-            trial_iterator = tqdm(
-                list(enumerate(eqprop_configs)),
-                desc="EqProp Trials",
-                total=len(eqprop_configs) * len(seeds),
-                unit="trial"
+        # Create or load study
+        try:
+            study = optuna.create_study(
+                study_name=study_name,
+                storage=self.storage_url,
+                load_if_exists=True,
+                direction="maximize",
+                sampler=optuna.samplers.TPESampler(seed=42),
+                pruner=optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=1)
             )
-        else:
-            trial_iterator = enumerate(eqprop_configs)
+        except Exception as e:
+            print(f"Warning: Could not create study with default settings: {e}")
+            print("Trying in-memory study...")
+            study = optuna.create_study(
+                direction="maximize",
+                sampler=optuna.samplers.TPESampler(seed=42),
+                pruner=optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=1)
+            )
+
         
-        for i, cfg in trial_iterator:
-            for seed in seeds:
-                trial_id = f"eq_{task}_{i}_s{seed}"
-                
-                # Skip if already complete
-                existing = self.db.get_trial(trial_id)
-                if existing and existing.status == "complete":
-                    if HAS_TQDM:
-                        trial_iterator.set_postfix_str(f"⏭️  {trial_id} (cached)")
-                    else:
-                        print(f"  ⏭️  {trial_id} already complete, skipping")
-                    continue
-                
-                trial = HyperOptTrial(
-                    trial_id=trial_id,
-                    algorithm="eqprop",
-                    config=cfg,
-                    task=task,
-                    seed=seed,
-                )
-                
-                if not headless:
-                    print(f"\n📊 Trial {i+1}/{len(eqprop_configs)} seed {seed}: {trial_id}")
-                    print(f"   Config: β={cfg['beta']}, damping={cfg['damping']}, "
-                          f"iters={cfg['max_iters']}, d={cfg['d_model']}")
-                
-                def callback(line):
-                    if not headless:
-                        print(f"   {line.strip()}", flush=True)
-                
-                trial = self.evaluator.evaluate(trial, epochs=epochs, callback=callback)
-                self.db.add_trial(trial)
-                
-                status = "✅" if trial.status == "complete" else "❌"
-                perf_str = f"{trial.performance:.4f}"
-                time_str = f"{trial.cost.wall_time_seconds:.1f}s"
-                
-                if HAS_TQDM:
-                    trial_iterator.set_postfix_str(f"{status} {perf_str} @ {time_str}")
-                elif not headless:
-                    print(f"   {status} Performance: {perf_str}, Time: {time_str}")
+        print(f"🚀 Starting Optuna study: {study_name}")
+        print(f"   Task: {task}")
+        print(f"   Algorithm: {algorithm}")
+        print(f"   Trials: {n_trials}")
         
-        # Run baseline trials
-        print("\n" + "-" * 70)
-        print("⚡ Phase 2: Baseline Hyperparameter Search")
-        print("-" * 70)
-        
-        for i, cfg in enumerate(baseline_configs):
-            for seed in seeds:
-                trial_id = f"bp_{task}_{i}_s{seed}"
-                
-                existing = self.db.get_trial(trial_id)
-                if existing and existing.status == "complete":
-                    print(f"  ⏭️  {trial_id} already complete, skipping")
-                    continue
-                
-                trial = HyperOptTrial(
-                    trial_id=trial_id,
-                    algorithm="bp",
-                    config=cfg,
-                    task=task,
-                    seed=seed,
-                )
-                
-                print(f"\n📊 Trial {i+1}/{len(baseline_configs)} seed {seed}: {trial_id}")
-                print(f"   Config: lr={cfg['lr']}, opt={cfg['optimizer']}, d={cfg['d_model']}")
-                
-                def callback(line):
-                    if not headless:
-                        print(f"   {line.strip()}", flush=True)
-                
-                trial = self.evaluator.evaluate(trial, epochs=epochs, callback=callback)
-                self.db.add_trial(trial)
-                
-                status = "✅" if trial.status == "complete" else "❌"
-                print(f"   {status} Performance: {trial.performance:.4f}, "
-                      f"Time: {trial.cost.wall_time_seconds:.1f}s")
-        
-        # Analysis
-        self._print_analysis(task)
-    
-    def _sample_configs(self, space: SearchSpace, n: int, 
-                        strategy: str, rng: random.Random) -> List[Dict]:
-        """Sample configurations from search space.
-        
-        Strategies:
-        - grid: Full grid (or random subset if too large)
-        - random: Pure random sampling
-        - sobol: Quasi-random Sobol sequence (better coverage, requires scipy)
-        """
-        if strategy == "grid":
-            all_configs = space.grid()
-            if len(all_configs) <= n:
-                return all_configs
-            return rng.sample(all_configs, n)
-        
-        elif strategy == "sobol":
-            if not HAS_SCIPY:
-                print("⚠️  scipy not available, falling back to random sampling")
-                return [space.sample(rng) for _ in range(n)]
+        # Define objective function
+        def objective(trial):
+            # 1. Sample Hyperparameters
+            config = self._sample_config(trial, algorithm)
             
-            # Use Sobol sequence for better space coverage
-            return self._sobol_sample(space, n)
-        
-        elif strategy == "lhs":
-            if not HAS_SCIPY:
-                print("⚠️  scipy not available, falling back to random sampling")
-                return [space.sample(rng) for _ in range(n)]
+            # 2. Create internal Trial object
+            trial_id = f"optuna_{trial.number}_{task}_{int(time.time())}"
+            h_trial = HyperOptTrial(
+                trial_id=trial_id,
+                algorithm=algorithm,
+                config=config,
+                task=task,
+                seed=random.randint(1000, 9999)
+            )
             
-            # Use Latin Hypercube Sampling
-            return self._lhs_sample(space, n)
+            # 3. Run evaluation
+            h_trial = self.evaluator.evaluate(h_trial, epochs=epochs, show_progress=True)
+            
+            # 4. Report results if failed
+            if h_trial.status != "complete":
+                trial.set_user_attr("error", h_trial.error)
+                raise optuna.TrialPruned(f"Trial failed: {h_trial.error}")
+            
+            # 5. Store metrics
+            for k, v in h_trial.cost.to_dict().items():
+                if isinstance(v, (int, float, str)):
+                     trial.set_user_attr(f"cost_{k}", v)
+            
+            trial.set_user_attr("log_path", h_trial.log_path)
+            
+            return h_trial.performance
+
+        # Run optimization
+        try:
+            study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
+        except KeyboardInterrupt:
+            print("\n🛑 Optimization stopped by user.")
         
-        elif strategy == "random":
-            return [space.sample(rng) for _ in range(n)]
-        
-        else:
-            # Default to random
-            return [space.sample(rng) for _ in range(n)]
+        self._print_study_summary(study)
+        return study
     
-    def _print_analysis(self, task: str):
-        """Print analysis of completed trials."""
-        print("\n" + "=" * 70)
-        print("  HYPEROPT ANALYSIS")
-        print("=" * 70)
+    def _sample_config(self, trial, algorithm: str) -> Dict[str, Any]:
+        """Sample hyperparameters using Optuna trial."""
         
-        eqprop_trials = self.db.get_trials(algorithm="eqprop", task=task, status="complete")
-        baseline_trials = self.db.get_trials(algorithm="bp", task=task, status="complete")
+        if algorithm == "eqprop":
+            return {
+                "algorithm": "eqprop",
+                "beta": trial.suggest_float("beta", 0.05, 0.5), #, step=0.05),
+                "damping": trial.suggest_float("damping", 0.5, 0.99),
+                "max_iters": trial.suggest_categorical("max_iters", [10, 20, 50, 100]),
+                "tol": trial.suggest_categorical("tol", [1e-4, 1e-5, 1e-6]),
+                "attention_type": trial.suggest_categorical("attention_type", ["linear"]), # "softmax"]),
+                "symmetric": trial.suggest_categorical("symmetric", [True, False]),
+                "update_mode": trial.suggest_categorical("update_mode", ["mse_proxy"]), #, "vector_field"]),
+                "d_model": trial.suggest_categorical("d_model", [16, 32, 64, 128]),
+                "lr": trial.suggest_float("lr", 1e-4, 1e-2, log=True),
+            }
+        else: # baseline (bp)
+             return {
+                "algorithm": "bp",
+                "lr": trial.suggest_float("lr", 1e-4, 1e-2, log=True),
+                "optimizer": trial.suggest_categorical("optimizer", ["adam", "adamw"]),
+                "d_model": trial.suggest_categorical("d_model", [16, 32, 64, 128]),
+                "weight_decay": trial.suggest_categorical("weight_decay", [0, 1e-4, 1e-3]),
+                # "scheduler": trial.suggest_categorical("scheduler", ["none", "cosine"]),
+            }
+
+    def _print_study_summary(self, study):
+        """Print summary of the study."""
+        print("\n" + "="*50)
+        print("🏁 Optimization Complete")
+        print("="*50)
         
-        if not eqprop_trials or not baseline_trials:
-            print("  ❌ Insufficient trials for analysis")
+        if len(study.trials) == 0:
+            print("No trials completed.")
             return
-        
-        # Best configurations
-        best_eq = max(eqprop_trials, key=lambda t: t.performance)
-        best_bl = max(baseline_trials, key=lambda t: t.performance)
-        
-        print(f"\n📊 Best Configurations:")
-        print(f"\n  🔋 EqProp Best: {best_eq.performance:.4f}")
-        print(f"     Config: β={best_eq.config['beta']}, damping={best_eq.config['damping']}, "
-              f"iters={best_eq.config['max_iters']}, d={best_eq.config['d_model']}")
-        print(f"     Time: {best_eq.cost.wall_time_seconds:.1f}s")
-        
-        print(f"\n  ⚡ Baseline Best: {best_bl.performance:.4f}")
-        print(f"     Config: lr={best_bl.config['lr']}, opt={best_bl.config['optimizer']}, "
-              f"d={best_bl.config['d_model']}")
-        print(f"     Time: {best_bl.cost.wall_time_seconds:.1f}s")
-        
-        # Statistical comparison
-        eq_perfs = [t.performance for t in eqprop_trials]
-        bl_perfs = [t.performance for t in baseline_trials]
-        
-        result = self.analyzer.compare(eq_perfs, bl_perfs, "EqProp", "Baseline")
-        
-        print(f"\n📈 Statistical Comparison (all trials):")
-        print(f"   EqProp: {result.algo1_mean:.4f} ± {result.algo1_std:.4f} (n={result.algo1_n})")
-        print(f"   Baseline: {result.algo2_mean:.4f} ± {result.algo2_std:.4f} (n={result.algo2_n})")
-        print(f"   Difference: {result.improvement_pct:+.2f}%")
-        print(f"   p-value: {result.p_value:.4f}")
-        print(f"   Cohen's d: {result.cohens_d:.2f}")
-        print(f"   Significant: {'Yes' if result.is_significant else 'No'}")
-        
-        # Matched comparison
-        pairs = self.matcher.match(eqprop_trials, baseline_trials)
-        
-        if pairs:
-            print(f"\n⚖️  Matched Comparisons ({len(pairs)} pairs, {self.matcher.strategy}):")
-            eq_wins = sum(1 for p in pairs if p.performance_diff() > 0)
-            bl_wins = sum(1 for p in pairs if p.performance_diff() < 0)
-            ties = len(pairs) - eq_wins - bl_wins
-            
-            print(f"   EqProp wins: {eq_wins}/{len(pairs)}")
-            print(f"   Baseline wins: {bl_wins}/{len(pairs)}")
-            print(f"   Ties: {ties}/{len(pairs)}")
-            
-            avg_diff = np.mean([p.performance_diff() for p in pairs])
-            avg_time_ratio = np.mean([p.time_ratio() for p in pairs])
-            
-            print(f"   Avg performance diff: {avg_diff:+.4f}")
-            print(f"   Avg time ratio (EqProp/Baseline): {avg_time_ratio:.2f}x")
-        
-        # Pareto frontier
-        all_trials = eqprop_trials + baseline_trials
-        frontier = ParetoAnalyzer.pareto_frontier(all_trials, ["performance", "time"])
-        
-        print(f"\n🎯 Pareto Frontier (performance vs time):")
-        eq_on_frontier = sum(1 for t in frontier if t.algorithm == "eqprop")
-        bl_on_frontier = sum(1 for t in frontier if t.algorithm == "bp")
-        print(f"   Total on frontier: {len(frontier)}")
-        print(f"   EqProp: {eq_on_frontier}, Baseline: {bl_on_frontier}")
-        
-        for t in sorted(frontier, key=lambda x: x.performance, reverse=True)[:5]:
-            marker = "🔋" if t.algorithm == "eqprop" else "⚡"
-            print(f"   {marker} {t.performance:.4f} @ {t.cost.wall_time_seconds:.1f}s")
-        
-        # Time-normalized analysis
-        eq_times = [t.cost.wall_time_seconds for t in eqprop_trials]
-        bl_times = [t.cost.wall_time_seconds for t in baseline_trials]
-        
-        avg_eq_time = np.mean(eq_times) if eq_times else 0
-        avg_bl_time = np.mean(bl_times) if bl_times else 1
-        
-        speed_ratio = avg_bl_time / avg_eq_time if avg_eq_time > 0 else 1
-        perf_gap = best_bl.performance - best_eq.performance
-        
-        print(f"\n⏱️  Time-Normalized Analysis:")
-        print(f"   Avg EqProp time: {avg_eq_time:.1f}s")
-        print(f"   Avg Baseline time: {avg_bl_time:.1f}s")
-        print(f"   Speed advantage: {speed_ratio:.1f}x faster")
-        print(f"   Performance gap: {perf_gap:+.4f}")
-        
-        if speed_ratio > 5:
-            efficiency = perf_gap / speed_ratio
-            print(f"   Efficiency ratio: {efficiency:.4f} perf per unit speed")
-            
-        # Verdict
-        print("\n" + "=" * 70)
-        print("  VERDICT")
-        print("=" * 70)
-        
-        if result.is_significant and result.algo1_mean > result.algo2_mean:
-            print("  🏆 EqProp shows SIGNIFICANT ADVANTAGE over baseline!")
-            print(f"     +{result.improvement_pct:.1f}% performance (p={result.p_value:.4f})")
-        elif result.is_significant and result.algo2_mean > result.algo1_mean:
-            print("  ⚠️  Baseline outperforms EqProp significantly")
-            print(f"     {result.improvement_pct:.1f}% worse (p={result.p_value:.4f})")
-        else:
-            print("  📊 No significant difference between EqProp and baseline")
-            print(f"     Δ={result.improvement_pct:+.1f}%, p={result.p_value:.4f}")
-        
-        if eq_on_frontier > bl_on_frontier:
-            print(f"  🎯 EqProp dominates Pareto frontier ({eq_on_frontier}/{len(frontier)})")
-        elif bl_on_frontier > eq_on_frontier:
-            print(f"  ⚡ Baseline dominates Pareto frontier ({bl_on_frontier}/{len(frontier)})")
-        
-        # Interpretation / Big Picture
-        print("\n" + "-" * 70)
-        print("  💡 INSIGHTS")
-        print("-" * 70)
-        
-        if speed_ratio > 5:
-            print(f"  • EqProp is {speed_ratio:.0f}x faster - significant efficiency advantage")
-            if perf_gap < 0.05:  # 5% gap
-                print("  • Small accuracy gap may be acceptable for speed tradeoff")
-                print("  • Consider: At equal time budget, EqProp may match BP accuracy")
-        
-        if task.lower() in ["cartpole", "acrobot", "lunarlander", "mountaincar"]:
-            if best_eq.performance > best_bl.performance:
-                print("  • 🎉 EqProp OUTPERFORMS BP on RL - key finding!")
-                print("  • Novel contribution: First EP superiority on control tasks")
-        
-        # Check for model size mismatch
-        eq_d = [t.config.get('d_model', 0) for t in eqprop_trials]
-        bl_d = [t.config.get('d_model', 0) for t in baseline_trials]
-        
-        avg_eq_d = np.mean(eq_d) if eq_d else 0
-        avg_bl_d = np.mean(bl_d) if bl_d else 0
-        
-        if abs(avg_eq_d - avg_bl_d) > 50:
-            print(f"  ⚠️  Model size mismatch: EqProp avg d={avg_eq_d:.0f}, BP avg d={avg_bl_d:.0f}")
-            print("  • Consider running with matched d_model for fair comparison")
-        
-        # Recommendations
-        print("\n" + "-" * 70)
-        print("  📋 RECOMMENDATIONS")
-        print("-" * 70)
-        
-        if result.algo2_mean > result.algo1_mean and speed_ratio > 5:
-            print("  1. Run fair comparison with same d_model")
-            print("  2. Test EqProp with larger model (d=256)")
-            print("  3. Consider time-budget experiment (same wall-clock time)")
-        
-        if best_eq.performance < 0.90 and task.lower() in ["mnist", "fashion"]:
-            print("  1. Try more epochs (current may be insufficient)")
-            print("  2. Tune β (best range: 0.20-0.25)")
-            print("  3. Increase d_model for more capacity")
-        
-        if task.lower() in ["parity", "copy", "addition"]:
-            print("  1. Algorithmic tasks may show adaptive compute advantage")
-            print("  2. Track convergence iterations per sample difficulty")
-        
-        print("=" * 70)
-    
-    def report(self, task: str = None):
-        """Generate report from existing results."""
-        tasks = [task] if task else ["mnist", "fashion", "cifar10"]
-        
-        for t in tasks:
-            eqprop = self.db.get_trials(algorithm="eqprop", task=t, status="complete")
-            baseline = self.db.get_trials(algorithm="bp", task=t, status="complete")
-            
-            if eqprop or baseline:
-                print(f"\n📊 Task: {t}")
-                print(f"   EqProp trials: {len(eqprop)}")
-                print(f"   Baseline trials: {len(baseline)}")
-                
-                if eqprop and baseline:
-                    self._print_analysis(t)
-    
-    def _sobol_sample(self, space: SearchSpace, n: int) -> List[Dict]:
-        """Sample using Sobol quasi-random sequence for better coverage.
-        
-        Sobol sequences provide more uniform coverage of hyperparameter space
-        than random sampling, which is critical for broad surveys.
-        """
-        # Get all grid configs
-        all_grid = space.grid()
-        if not all_grid or len(all_grid) == 0:
-            return [space.sample() for _ in range(n)]
-        
-        # Get representative sample
-        sample_config = all_grid[0]
-        
-        # Identify parameter types and ranges
-        param_info = {}
-        for key in sample_config.keys():
-            if key == "algorithm":
-                continue
-            values = sorted(set(cfg[key] for cfg in all_grid if key in cfg))
-            param_info[key] = values
-        
-        if not param_info:
-            return [space.sample() for _ in range(n)]
-        
-        # Generate Sobol samples
-        param_names = list(param_info.keys())
-        sampler = qmc.Sobol(d=len(param_names), scramble=True, seed=42)
-        samples = sampler.random(n)
-        
-        # Map to hyperparameter space
-        configs = []
-        for sample in samples:
-            config = {"algorithm": sample_config["algorithm"]}
-            for i, param_name in enumerate(param_names):
-                values = param_info[param_name]
-                # Map [0,1] to discrete index
-                idx = int(sample[i] * len(values))
-                idx = min(idx, len(values) - 1)
-                config[param_name] = values[idx]
-            configs.append(config)
-        
-        return configs
-    
-    def _lhs_sample(self, space: SearchSpace, n: int) -> List[Dict]:
-        """Latin Hypercube Sampling for better coverage.
-        
-        LHS ensures each parameter range is evenly divided and sampled.
-        Complementary to Sobol - use both for best coverage.
-        """
-        if not HAS_SCIPY:
-            return [space.sample() for _ in range(n)]
-        
-        all_grid = space.grid()
-        if not all_grid:
-            return [space.sample() for _ in range(n)]
-        
-        # Get parameter info
-        sample_config = all_grid[0]
-        param_info = {}
-        for key in sample_config.keys():
-            if key == "algorithm":
-                continue
-            values = sorted(set(cfg[key] for cfg in all_grid if key in cfg))
-            param_info[key] = values
-        
-        if not param_info:
-            return [space.sample() for _ in range(n)]
-        
-        # Generate LHS samples
-        param_names = list(param_info.keys())
-        sampler = qmc.LatinHypercube(d=len(param_names), seed=42)
-        samples = sampler.random(n)
-        
-        # Map to hyperparameter space
-        configs = []
-        for sample in samples:
-            config = {"algorithm": sample_config["algorithm"]}
-            for i, param_name in enumerate(param_names):
-                values = param_info[param_name]
-                idx = int(sample[i] * len(values))
-                idx = min(idx, len(values) - 1)
-                config[param_name] = values[idx]
-            configs.append(config)
-        
-        return configs
-    
-    def smoke_test(self, n_trials: int = 2, task: str = "xor", ultra_fast: bool = True):
-        """Quick smoke test with minimal trials.
-        
-        Args:
-            n_trials: Number of trials per algorithm
-            task: Task to test (default: xor for ultra-fast)
-            ultra_fast: If True, use d_model=8 for 5-10s runs
-        """
-        print("\n🧪 SMOKE TEST MODE")
-        if ultra_fast:
-            print("⚡ ULTRA-FAST: d_model=8, micro task, <10s per trial, single seed")
-        print("=" * 70)
-        
-        # Override search spaces for ultra-fast testing
-        if ultra_fast:
-            self.eqprop_space = EqPropSearchSpace(
-                beta=[0.2, 0.25],
-                damping=[0.8],
-                max_iters=[10, 20],
-                tol=[1e-4],
-                attention_type=["linear"],
-                symmetric=[False],
-                update_mode=["mse_proxy"],
-                d_model=[8, 16],  # Ultra-small for speed
-                lr=[1e-3]
-            )
-            self.baseline_space = BaselineSearchSpace(
-                lr=[1e-3, 5e-3],
-                optimizer=["adam"],
-                d_model=[8, 16],  # Match EqProp
-                weight_decay=[0],
-                scheduler=["none"]
-            )
-        
-        # Use only 1 seed for smoke tests (3x faster)
-        self.run(task=task, n_trials=n_trials, epochs=1, seeds=[0], headless=True)
-    
-    def run_campaign(self, tasks: List[str] = None, n_trials: int = 10,
-                     strategy: str = "random", seeds: List[int] = None,
-                     epochs: int = 3, rapid: bool = False):
-        """Run comprehensive research campaign across multiple tasks.
-        
-        Implements the TorEqProp research plan phases:
-        - Phase 1: Classification (mnist, fashion, cifar10)
-        - Phase 2: Algorithmic (parity, copy, addition)
-        - Phase 3: RL (cartpole, acrobot)
-        - Phase 4: Memory profiling
-        
-        Args:
-            tasks: List of tasks to run, or None for all
-            n_trials: Number of trials per algorithm per task
-            strategy: Search strategy
-            seeds: Random seeds
-            epochs: Epochs per trial (reduced in rapid mode)
-            rapid: Use rapid mode (fewer epochs, smaller models, faster feedback)
-        """
-        if tasks is None:
-            tasks = ["mnist", "fashion", "cartpole", "parity"]
-        
-        if seeds is None:
-            seeds = [0, 1, 2]
-        
-        # Rapid mode adjustments
-        if rapid:
-            epochs = min(epochs, 1)
-            n_trials = min(n_trials, 5)
-            seeds = seeds[:2]  # Only 2 seeds in rapid mode
-            print("\n⚡ RAPID MODE: Reduced epochs, trials, and seeds for fast feedback")
-        
-        # Estimate total time
-        total_trials = len(tasks) * n_trials * len(seeds) * 2  # 2 algorithms
-        est_time_min = total_trials * (0.5 if rapid else 2)  # ~30s rapid, ~2min normal
-        
-        print("\n" + "=" * 70)
-        print("  TorEqProp Research Campaign")
-        print("=" * 70)
-        print(f"  Tasks: {', '.join(tasks)}")
-        print(f"  Trials per algorithm: {n_trials}")
-        print(f"  Seeds: {seeds}")
-        print(f"  Total trials: {total_trials}")
-        print(f"  Estimated time: {est_time_min:.0f} min")
-        print("=" * 70)
-        
-        campaign_start = time.time()
-        completed_tasks = []
-        
-        for i, task in enumerate(tasks):
-            task_start = time.time()
-            print(f"\n{'='*70}")
-            print(f"📋 TASK {i+1}/{len(tasks)}: {task.upper()}")
-            print(f"{'='*70}")
-            
-            try:
-                self.run(
-                    task=task,
-                    n_trials=n_trials,
-                    strategy=strategy,
-                    seeds=seeds,
-                    epochs=epochs,
-                    headless=True
-                )
-                completed_tasks.append(task)
-                
-                task_time = time.time() - task_start
-                print(f"\n✅ {task} complete in {task_time/60:.1f} min")
-                
-            except Exception as e:
-                print(f"\n❌ {task} failed: {e}")
-                continue
-        
-        # Campaign summary
-        total_time = time.time() - campaign_start
-        print("\n" + "=" * 70)
-        print("  CAMPAIGN COMPLETE")
-        print("=" * 70)
-        print(f"  Completed: {len(completed_tasks)}/{len(tasks)} tasks")
-        print(f"  Total time: {total_time/60:.1f} min")
-        print(f"  Tasks: {', '.join(completed_tasks)}")
-        
-        # Generate combined report
-        print("\n" + "-" * 70)
-        print("📊 Combined Analysis")
-        print("-" * 70)
-        
-        all_eqprop = []
-        all_baseline = []
-        
-        for task in completed_tasks:
-            eqprop = self.db.get_trials(algorithm="eqprop", task=task, status="complete")
-            baseline = self.db.get_trials(algorithm="bp", task=task, status="complete")
-            all_eqprop.extend(eqprop)
-            all_baseline.extend(baseline)
-            
-            if eqprop and baseline:
-                eq_avg = np.mean([t.performance for t in eqprop])
-                bl_avg = np.mean([t.performance for t in baseline])
-                diff = ((eq_avg - bl_avg) / bl_avg * 100) if bl_avg != 0 else 0
-                
-                winner = "🔋 EqProp" if eq_avg > bl_avg else "⚡ BP"
-                print(f"  {task}: EqProp={eq_avg:.4f}, BP={bl_avg:.4f} → {winner} ({diff:+.1f}%)")
-        
-        print("=" * 70)
-    
-    def status(self):
-        """Show current status of all trials."""
-        print("\n" + "=" * 70)
-        print("  HYPEROPT STATUS")
-        print("=" * 70)
-        
-        all_trials = self.db.get_trials()
-        if not all_trials:
-            print("  No trials found.")
-            return
-        
-        # Group by task
-        by_task = defaultdict(list)
-        for t in all_trials:
-            by_task[t.task].append(t)
-        
-        for task, trials in sorted(by_task.items()):
-            eq_trials = [t for t in trials if t.algorithm == "eqprop"]
-            bl_trials = [t for t in trials if t.algorithm == "bp"]
-            
-            eq_complete = sum(1 for t in eq_trials if t.status == "complete")
-            bl_complete = sum(1 for t in bl_trials if t.status == "complete")
-            
-            print(f"\n📋 {task}:")
-            print(f"   EqProp: {eq_complete}/{len(eq_trials)} complete")
-            print(f"   Baseline: {bl_complete}/{len(bl_trials)} complete")
-            
-            if eq_complete > 0 and bl_complete > 0:
-                eq_perfs = [t.performance for t in eq_trials if t.status == "complete"]
-                bl_perfs = [t.performance for t in bl_trials if t.status == "complete"]
-                
-                eq_best = max(eq_perfs) if eq_perfs else 0
-                bl_best = max(bl_perfs) if bl_perfs else 0
-                
-                print(f"   Best EqProp: {eq_best:.4f}")
-                print(f"   Best Baseline: {bl_best:.4f}")
-        
-        print("\n" + "=" * 70)
 
+        print(f"Best value: {study.best_value}")
+        print("Best params:")
+        for key, value in study.best_params.items():
+            print(f"    {key}: {value}")
+        
+        print("\nImportance:")
+        try:
+            importance = optuna.importance.get_param_importances(study)
+            for key, value in importance.items():
+                print(f"    {key}: {value:.4f}")
+        except:
+            print("    (Insufficient data for importance analysis)")
+
+
+# =============================================================================
+# CLI
+# =============================================================================
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="TorEqProp Competitive Hyperparameter Optimization",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Quick smoke test
-  python hyperopt_engine.py --smoke-test
-  
-  # Rapid campaign (fast feedback)
-  python hyperopt_engine.py --campaign --rapid
-  
-  # Full optimization on specific task
-  python hyperopt_engine.py --task cartpole --n-trials 50 --epochs 5
-  
-  # Multi-task campaign
-  python hyperopt_engine.py --campaign --tasks mnist fashion cartpole parity
-  
-  # Generate report from existing results
-  python hyperopt_engine.py --report
-  
-  # Show status of all trials
-  python hyperopt_engine.py --status
-
-Supported Tasks:
-  Classification: mnist, fashion, cifar10, svhn
-  Algorithmic:    parity, parity_12, copy, addition
-  Micro:          xor, xor3, and, or, majority, identity, tiny_lm
-  RL:             cartpole, acrobot, mountaincar, lunarlander
-  Memory:         memory
-        """
-    )
-    
-    # Mode selection
-    mode_group = parser.add_mutually_exclusive_group()
-    mode_group.add_argument("--smoke-test", action="store_true",
-                           help="Quick smoke test (2 trials, 1 epoch)")
-    mode_group.add_argument("--campaign", action="store_true",
-                           help="Run research campaign across multiple tasks")
-    mode_group.add_argument("--report", action="store_true",
-                           help="Generate report from existing results")
-    mode_group.add_argument("--status", action="store_true",
-                           help="Show status of all trials")
-    
-    # Task selection
-    parser.add_argument("--task", type=str, default="mnist",
-                       help="Single task to optimize on")
-    parser.add_argument("--tasks", type=str, nargs="+",
-                       default=["mnist", "fashion", "cartpole", "parity"],
-                       help="Tasks for campaign mode")
-    
-    # Optimization settings
-    parser.add_argument("--n-trials", type=int, default=10,
-                       help="Number of trials per algorithm")
-    parser.add_argument("--strategy", type=str, default="random",
-                       choices=["grid", "random", "sobol", "lhs"],
-                       help="Search strategy (sobol/lhs recommended for broad survey)")
-    parser.add_argument("--epochs", type=int, default=3,
-                       help="Training epochs per trial")
-    parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2],
-                       help="Random seeds to use")
-    
-    # Speed/quality tradeoffs
-    parser.add_argument("--rapid", action="store_true",
-                       help="Rapid mode: fewer epochs, smaller configs, faster feedback")
-    parser.add_argument("--ultra-fast", action="store_true",
-                       help="Ultra-fast smoke test: d_model=8, micro tasks (<10s/trial)")
-    parser.add_argument("--headless", action="store_true",
-                       help="Suppress training output (still shows progress)")
-    
-    # Configuration
-    parser.add_argument("--config", type=str, default="validation_config.yaml",
-                       help="Path to configuration file")
+    parser = argparse.ArgumentParser(description="Toreq Optuna Hyperopt")
+    parser.add_argument("--task", type=str, default="mnist", help="Task to optimize")
+    parser.add_argument("--algorithm", type=str, default="eqprop", choices=["eqprop", "bp"], help="Algorithm")
+    parser.add_argument("--n-trials", type=int, default=10, help="Number of trials")
+    parser.add_argument("--epochs", type=int, default=3, help="Epochs per trial")
+    parser.add_argument("--smoke-test", action="store_true", help="Run quick smoke test")
     
     args = parser.parse_args()
     
-    engine = HyperOptEngine(args.config)
-    
     if args.smoke_test:
-        engine.smoke_test(
-            n_trials=2, 
-            task=args.task,
-            ultra_fast=args.ultra_fast
-        )
-    elif args.campaign:
-        engine.run_campaign(
-            tasks=args.tasks,
-            n_trials=args.n_trials,
-            strategy=args.strategy,
-            seeds=args.seeds,
-            epochs=args.epochs,
-            rapid=args.rapid
-        )
-    elif args.report:
-        engine.report(task=args.task if args.task != "mnist" else None)
-    elif args.status:
-        engine.status()
+        print("🔥 Running Smoke Test...")
+        # Use in-memory for smoke test to avoid locking
+        engine = OptunaHyperoptEngine(study_name="smoke_test_mem", storage_url="sqlite:///smoke_test.db")
+        engine.run_study(n_trials=2, task="xor", algorithm=args.algorithm, epochs=1)
     else:
-        engine.run(
-            task=args.task,
-            n_trials=args.n_trials,
-            strategy=args.strategy,
-            seeds=args.seeds,
-            epochs=args.epochs,
-            headless=args.headless
-        )
+        engine = OptunaHyperoptEngine()
+        engine.run_study(n_trials=args.n_trials, task=args.task, algorithm=args.algorithm, epochs=args.epochs)
 
 
 if __name__ == "__main__":
     main()
-
