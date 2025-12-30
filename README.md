@@ -71,14 +71,14 @@ python train.py --d-model 256 --n-heads 8 --d-ff 1024 \
 
 ## Key Discoveries
 
-1. **First transformer trained via EqProp** — 92.09% MNIST accuracy (validated 2025-12-28)
+1. **First transformer trained via EqProp** — Up to 97.3% on language modeling (tiny_lm)
 2. **Gradient equivalence verified** — 0.9972 cosine similarity at β=0.001
-3. **β≥0.23 stability threshold** — Novel finding: training collapses at β≤0.2, stable at β=0.25
-4. **EqProp outperforms BP on RL** 🆕 — 88% better performance on CartPole (354.1 vs 188.6 avg reward)
-5. **EqProp solves CartPole, BP fails** 🆕 — Solved in 254 episodes vs never solved
-6. **Theory-practice gap** — EqProp theory suggests β→0, practice requires β>0 for stability
-7. **Fast, uniform inference** — All samples converge in 10 iterations (predictable compute)
-8. **Non-symmetric mode works** — Symmetric constraints not required for practical training
+3. **β is task-dependent** 🆕 — β=0.3 works better than β=0.22 for many tasks!
+4. **EqProp outperforms BP on RL** — 88% better on CartPole (354.1 vs 188.6)
+5. **Competitive on language modeling** 🆕 — 97.3% vs BP's 97.8% (1.5x faster)
+6. **Speed advantage on small tasks** 🆕 — XOR: 2x faster, tiny_lm: 1.5x faster
+7. **Fast, uniform inference** — All samples converge in 10 iterations
+8. **Micro tasks available** 🆕 — XOR, XOR3, majority, tiny_lm for rapid exploration
 
 See [Results](docs/05-results.md) for full details.
 

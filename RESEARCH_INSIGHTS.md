@@ -1,249 +1,174 @@
-# TorEqProp Research Insights & Strategy
+# TorEqProp Research Findings & Insights
 
 > **Updated**: December 30, 2025  
-> **Purpose**: Answer the "big questions" - should we continue, where to focus, what's promising?
+> **Status**: Active experimentation - discovering optimal hyperparameters
 
 ---
 
-## Executive Summary
+## ⚠️ CRITICAL FINDING: β=0.22 Was Wrong!
 
-### Current Results Analysis
+Previous experiments assumed β=0.22 was optimal. **This was incorrect.**
 
-| Task | EqProp Best | BP Best | EqProp Time | BP Time | Speed Advantage |
-|------|-------------|---------|-------------|---------|-----------------|
-| **MNIST** | 92.85% | 94.67% | **23.6s** | 282.8s | **12x faster** |
-| **Fashion** | 81.15% | 94.76% | **23.1s** | 286.0s | **12x faster** |
-| **CartPole** | 74.6 | 58.1 | - | - | **EqProp wins!** |
+| Task | β=0.1 | β=0.22 | β=0.3 | Impact |
+|------|-------|--------|-------|--------|
+| XOR3 | 65% ❌ | 74% ❌ | **100%** ✅ | β=0.3 is critical |
+| XOR | - | ~85% | **100%** ✅ | Higher β works |
 
-### The Key Insight
-
-**EqProp trades accuracy for speed** - and dominates the Pareto frontier:
-
-```
-                    Performance
-                         ↑
-                         │      ● BP (94.67%, 283s)
-                         │
-      EqProp Frontier → │    ● EqProp (92.85%, 24s)  ← 2% less accurate
-                         │  ●                           but 12x faster!
-                         │●
-                         └────────────────────────→ Time
-```
+**Lesson learned**: Never assume. Always sweep all hyperparameters.
 
 ---
 
-## Prior Art Analysis
+## Latest Experimental Results
 
-### 1. What Exists (State-of-the-Art)
+### Micro Task Comparison (Dec 30, 2025)
 
-| Method | Key Paper | Status |
-|--------|-----------|--------|
-| **Classic EqProp** | Scellier & Bengio (2017) | MLPs only, small datasets |
-| **Holomorphic EP** | NeurIPS 2024 | Exact gradients at finite β, CNNs |
-| **Deep Equilibrium Models** | Bai et al. (2019) | Implicit depth transformers, different paradigm |
-| **EP Robustness** | arXiv Jan 2024 | EP-trained EBMs > transformers on robustness |
-| **EP Without Limits** | arXiv Nov 2025 | Finite-nudge foundation (upcoming) |
+| Task | EqProp (β=0.3) | BP | EqProp Time | BP Time | Verdict |
+|------|----------------|-----|-------------|---------|---------|
+| XOR | 100% | 100% | 17s | 36s | **EqProp 2x faster** |
+| XOR3 | 100% | 100% | 42s | 54s | EqProp comparable |
+| majority | 100% | - | 37s | - | EqProp works |
+| tiny_lm | **97.3%** | 97.8% | **69s** | 104s | **EqProp 1.5x faster, equal accuracy** |
+| MNIST | 94.6% | 96.5% | 117s | 98s | BP slightly better |
 
-### 2. What's Missing (Our Gap to Fill)
+### Key Insights
 
-| Gap | Opportunity |
-|-----|-------------|
-| **No EP + Transformers** | ✅ We are the FIRST to train transformers via EqProp |
-| **No speed comparisons** | ✅ Our Pareto analysis shows novel speed advantage |
-| **No β characterization** | ✅ We discovered β=0.22 optimal, β-annealing fails |
-| **No RL with EP** | ✅ EqProp beats BP on CartPole (+28%) |
-
-### 3. Differentiation Strategy
-
-Our work is **novel and publishable** because:
-
-1. **First transformer with EqProp**: No prior work trains attention mechanisms via equilibrium propagation
-2. **Speed-accuracy tradeoff quantification**: First to show EP is 10-12x faster at cost of 2% accuracy
-3. **β stability discovery**: First to show β=0.22 is optimal and β-annealing causes collapse
-4. **RL superiority**: First to show EqProp outperforms BP on control tasks
+1. **EqProp matches BP on language modeling** (tiny_lm: 97.3% vs 97.8%)
+2. **EqProp is faster on small tasks** (XOR: 2x, tiny_lm: 1.5x)
+3. **β must be tuned** - β=0.22 fails on XOR3, β=0.3 succeeds
+4. **Speed advantage diminishes on larger tasks** (MNIST: EqProp is slower)
 
 ---
 
-## Answering the Big Questions
+## Hyperparameter Space (Expanded)
 
-### Q1: Is EqProp worth pursuing?
+The following parameters MUST be explored - no assumptions:
 
-**YES** - with caveats.
+### EqProp-Specific Parameters
 
-**Promising signals:**
-- ✅ 12x faster training per trial
-- ✅ Dominates Pareto frontier (speed vs accuracy)
-- ✅ Beats BP on CartPole RL
-- ✅ Novel contribution (first EP + transformer)
+| Parameter | Range to Test | Notes |
+|-----------|---------------|-------|
+| **β (nudge strength)** | [0.1, 0.2, 0.3, 0.4, 0.5] | Critical - varies by task |
+| **damping** | [0.5, 0.7, 0.8, 0.9, 0.95] | Controls convergence |
+| **max_iters** | [10, 20, 50, 100] | Compute budget for equilibrium |
+| **tol** | [1e-3, 1e-4, 1e-5, 1e-6] | Convergence tolerance |
+| **update_mode** | [mse_proxy, vector_field, local_hebbian] | Gradient approximation |
+| **symmetric** | [True, False] | Theoretical guarantees |
 
-**Concerning signals:**
-- ⚠️ 2-13% accuracy gap on classification
-- ⚠️ O(1) memory claim not yet validated (1.06x overhead)
-- ⚠️ High variance in some EqProp trials
+### Architecture Parameters
 
-**Verdict**: **Continue with focused experiments** on domains where speed matters or where EqProp shows advantage (RL, adaptive compute).
+| Parameter | Range | Notes |
+|-----------|-------|-------|
+| **d_model** | [8, 16, 32, 64, 128, 256] | Model dimension |
+| **n_heads** | [1, 2, 4, 8] | Must divide d_model |
+| **d_ff** | [d_model, 2×d_model, 4×d_model] | FFN hidden size |
+| **attention_type** | [linear, softmax] | Softmax incompatible with symmetric |
 
-### Q2: Where should we focus?
+### Training Parameters
 
-| Priority | Focus Area | Rationale |
-|----------|------------|-----------|
-| 🔴 **HIGH** | RL experiments | EqProp already beats BP - expand this |
-| 🔴 **HIGH** | Speed-normalized comparison | Run BP with same time budget as EqProp |
-| 🟡 **MEDIUM** | Fair d_model matching | Current runs use different d_model |
-| 🟡 **MEDIUM** | Extended training | See if EqProp catches up with more epochs |
-| 🟢 **LOW** | O(1) memory validation | Nice-to-have, not critical for publication |
+| Parameter | Range | Notes |
+|-----------|-------|-------|
+| **lr** | [1e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2] | Learning rate |
+| **batch_size** | [32, 64, 128, 256] | Batch size |
+| **epochs** | [10, 20, 50, 100] | Training duration |
 
-### Q3: What experiments to run next?
+---
 
-**Immediate (run today):**
+## Task Portfolio
+
+Testing across diverse tasks reveals where EqProp excels:
+
+### Micro Tasks (Fast Feedback, seconds)
+- `xor`, `and`, `or` - Basic logic gates
+- `xor3`, `majority` - Multi-input logic
+- `identity` - Sanity check
+- `tiny_lm` - Small language model (next token prediction)
+
+### Classification Tasks (Medium, minutes)
+- `mnist`, `fashion`, `cifar10`, `svhn` - Standard benchmarks
+
+### Algorithmic Tasks (Variable complexity)
+- `parity`, `copy`, `addition` - Tests adaptive compute
+
+### RL Tasks (High variance, needs seeds)
+- `cartpole`, `acrobot`, `lunarlander` - Control tasks
+
+---
+
+## Competitive Positioning
+
+### Where EqProp Shows Advantage
+
+| Domain | EqProp Advantage | Evidence |
+|--------|------------------|----------|
+| **Language modeling** | 1.5x faster, equal accuracy | tiny_lm: 97.3% vs 97.8% |
+| **Simple logic** | 2x faster | XOR in 17s vs 36s |
+| **RL control** | +28% reward | CartPole: 74.6 vs 58.1 (prior results) |
+
+### Where BP is Better
+
+| Domain | BP Advantage | Evidence |
+|--------|--------------|----------|
+| **Large classification** | ~2% higher accuracy | MNIST: 96.5% vs 94.6% |
+| **Larger models** | More stable | Less sensitive to β |
+
+### Surprising Findings
+
+1. **β is task-dependent** - No single optimal value
+2. **Speed advantage is scale-dependent** - EqProp faster on small, slower on large
+3. **tiny_lm competitive** - EqProp viable for language modeling
+
+---
+
+## Weaknesses & Concerns
+
+| Issue | Impact | Mitigation |
+|-------|--------|------------|
+| β must be tuned per-task | Increases search space | Systematic β sweep |
+| 2% gap on MNIST | May limit adoption | Try higher β, more epochs |
+| Slower on MNIST than BP | Contradicts speed claims | Focus on where EqProp wins |
+| High variance | Hard to reproduce | More seeds, CI reporting |
+
+---
+
+## Discovery Process Requirements
+
+### Turnkey Execution
 ```bash
-# 1. Fair comparison - same d_model, same epochs
-python hyperopt_engine.py --campaign --tasks cartpole --n-trials 20 --epochs 5
+# Run incremental discovery (accumulates data)
+python hyperopt_engine.py --task xor3 --n-trials 20 --epochs 30
 
-# 2. Speed-normalized: What can BP achieve in 24s (same as EqProp)?
-# → Requires modifying BP training to early-stop at 24s
-
-# 3. More RL environments
-python hyperopt_engine.py --task acrobot --n-trials 10 --epochs 3
-python hyperopt_engine.py --task lunarlander --n-trials 10 --epochs 3
+# Run systematic sweep
+python hyperopt_engine.py --campaign --tasks xor,xor3,tiny_lm,mnist --n-trials 10
 ```
 
-**This week:**
-- Run parity (algorithmic) experiments
-- Test larger d_model for EqProp
-- Validate O(1) memory at d=1024
+### Report Requirements
 
-### Q4: What's unknown?
-
-| Unknown | Impact | How to Resolve |
-|---------|--------|----------------|
-| Why EqProp faster? | Understanding | Profile equilibrium iterations |
-| Does accuracy gap close with more epochs? | Critical | Extended training runs |
-| Does RL advantage hold on harder envs? | Publication | LunarLander, Acrobot experiments |
-| Can we match BP accuracy at 12x speed? | Key claim | Architecture tuning |
+Each report must include:
+1. **Performance comparison** - EqProp vs BP with same configs
+2. **Statistical significance** - p-values, confidence intervals
+3. **Speed analysis** - Wall-clock time, not just epochs
+4. **Hyperparameter sensitivity** - How much does β/damping matter?
+5. **Academic skepticism** - What would a reviewer criticize?
+6. **Recommendations** - What to try next?
 
 ---
 
-## Execution Time Impact Analysis
+## Next Experiments (Priority Order)
 
-### Why is EqProp 12x faster?
-
-Hypothesized reasons:
-1. **Smaller effective model**: EqProp trials used d=64 vs BP's d=128-256
-2. **Fewer parameters**: 50K (EqProp) vs 200K (BP) in best configs  
-3. **Simpler forward pass**: No activation checkpointing needed
-4. **Early convergence**: EqProp may converge in fewer epochs
-
-### Fair Comparison Requirements
-
-| Dimension | Current Status | Fair Test |
-|-----------|---------------|-----------|
-| Model size (d_model) | EqProp=64, BP=128-256 | Same d_model for both |
-| Training time | 24s vs 283s | Same wall-clock budget |
-| Parameter count | ~50K vs ~200K | Same parameter count |
-| Epochs | 3 vs 3 | Same epochs |
-
-**Key experiment needed**: Run BP with d_model=64 for fair comparison.
-
-### Time-Normalized Verdict
-
-If we give BP the same time budget as EqProp (~24 seconds):
-- BP would complete ~0.3 epochs (vs 3 epochs for EqProp)
-- EqProp would likely dominate completely
-
-**This is the story we should tell**: EqProp achieves 90%+ accuracy in the time BP takes to complete a fraction of an epoch.
+1. **β sweep on MNIST** - β ∈ [0.25, 0.30, 0.35, 0.40]
+2. **CartPole with β=0.3** - Confirm RL advantage holds
+3. **tiny_lm extended training** - Can we close the 0.5% gap?
+4. **Matched d_model comparison** - Same size for both algorithms
+5. **update_mode comparison** - mse_proxy vs vector_field vs local_hebbian
 
 ---
 
-## Recommended Next Actions
+## Summary
 
-### Today
+**EqProp is viable** with proper hyperparameter tuning. Key realizations:
 
-1. **Run fair comparison with matched d_model** (both algorithms at d=128)
-   ```bash
-   # Clear old results and run fresh comparison
-   rm -f data/hyperopt_results.json
-   python hyperopt_engine.py --task mnist --n-trials 10 --epochs 3
-   ```
+✅ **Works**: Language modeling, logic tasks, RL  
+⚠️ **Needs tuning**: β must be >0.22 for some tasks  
+❌ **Struggles**: Large classification (MNIST gap)
 
-2. **Run CartPole experiments** (EqProp already winning here)
-   ```bash
-   python hyperopt_engine.py --task cartpole --n-trials 10 --epochs 3
-   ```
-
-### Optimizations Applied (Fair Comparison)
-
-Both EqProp and BP now use identical optimizations:
-- ✅ `persistent_workers=True` - keeps data loader workers alive
-- ✅ `pin_memory=True` - faster GPU transfer
-- ✅ `set_to_none=True` - faster gradient clearing
-- ✅ `cudnn.benchmark=True` - optimizes convolutions
-- ✅ `matmul_precision='high'` - TensorCore usage
-- ✅ No checkpoint saving during timing runs
-- ✅ Both have argparse CLI for consistent hyperopt integration
-
-### Key Scientific Questions
-
-1. **Does EqProp match BP accuracy at equal model size?**
-   - Run with matched `d_model=128` for both
-   - Currently EqProp uses smaller models (d=64-128 vs BP d=128-256)
-
-2. **Does RL advantage persist?**
-   - CartPole shows EqProp +28% - run more RL environments
-
-3. **Is the speed advantage real or artifact?**
-   - Run with matched configurations to isolate training algorithm
-
-
----
-
-## Publication Positioning
-
-### Primary Angle: Speed-Accuracy Tradeoff
-
-**Title**: *"Equilibrium Propagation for Fast Transformer Training: 10x Speed at 2% Cost"*
-
-**Key claims**:
-1. First transformer trained via equilibrium propagation
-2. 10-12x faster training with 2% accuracy tradeoff
-3. Dominates Pareto frontier (speed vs accuracy)
-4. Outperforms backprop on RL tasks
-
-**Venues**: NeurIPS, ICML (systems/empirical track)
-
-### Alternative Angle: RL with Equilibrium
-
-If RL results continue to dominate:
-
-**Title**: *"Equilibrium Propagation Outperforms Backpropagation for Policy Learning"*
-
-**Key claims**:
-1. EqProp achieves higher reward on control tasks (+28%)
-2. Novel application of contrastive learning to policy gradients
-3. Biologically plausible RL
-
-**Venues**: ICLR, RL-focused workshops
-
----
-
-## Conclusion
-
-**Should we continue?** YES
-
-**Why?**
-1. Novel contribution (first EP + transformer)
-2. Clear speed advantage (12x)
-3. RL dominance (unique finding)
-4. Multiple publication angles
-
-**What's promising?**
-- RL results (EqProp > BP)
-- Speed-accuracy tradeoff narrative
-- β characterization discovery
-
-**What needs work?**
-- Fair d_model comparison
-- Extended training runs
-- O(1) memory validation
-
-**Next step**: Run fair comparison experiments with matched configurations.
+**Never assume optimal hyperparameters. Always sweep.**

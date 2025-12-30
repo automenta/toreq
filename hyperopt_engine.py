@@ -36,8 +36,18 @@ from abc import ABC, abstractmethod
 import numpy as np
 from collections import defaultdict
 
-from validation_db import ValidationDB, ExperimentRun, generate_experiment_id
+try:
+    from scipy.stats import qmc
+    HAS_SCIPY = True
+except ImportError:
+    HAS_SCIPY = False
+
 from statistics import StatisticalAnalyzer, ComparisonResult
+
+# Simple experiment ID generation (was from validation_db)
+def generate_experiment_id():
+    """Generate unique experiment ID."""
+    return f"exp_{int(time.time())}_{random.randint(1000, 9999)}"
 
 
 # =============================================================================
@@ -75,8 +85,9 @@ class EqPropSearchSpace(SearchSpace):
     - Update mechanisms
     """
     
-    # Nudge strength: critical for gradient approximation quality
-    beta: List[float] = field(default_factory=lambda: [0.05, 0.1, 0.15, 0.2, 0.22, 0.25, 0.3])
+    # Nudge strength: CRITICAL - varies by task! 
+    # β=0.22 previously assumed optimal, but experiments show higher β often works better
+    beta: List[float] = field(default_factory=lambda: [0.1, 0.2, 0.25, 0.3, 0.35, 0.4, 0.5])
     
     # Damping: controls convergence speed vs stability tradeoff
     damping: List[float] = field(default_factory=lambda: [0.7, 0.8, 0.9, 0.95])
@@ -456,6 +467,16 @@ class CostAwareEvaluator:
                    f"--seed {trial.seed} --d-model {cfg['d_model']} "
                    f"--lr {cfg['lr']}")
         
+        # Micro tasks (for rapid exploration with tiny models)
+        elif task in ["xor", "xor3", "and", "and_gate", "or", "or_gate", 
+                      "majority", "identity", "tiny_lm"]:
+            cmd = (f"python train_micro.py --task {task} "
+                   f"--epochs {epochs} --seed {trial.seed} "
+                   f"--d-model {cfg['d_model']} --lr {cfg['lr']} "
+                   f"--beta {cfg['beta']} --damping {cfg['damping']} "
+                   f"--max-iters {cfg['max_iters']} --tol {cfg['tol']} "
+                   f"--update-mode {cfg['update_mode']}")
+        
         # RL tasks
         elif task in ["cartpole-v1", "cartpole", "acrobot-v1", "acrobot", 
                       "mountaincar-v0", "mountaincar", "lunarlander-v2", "lunarlander"]:
@@ -517,6 +538,14 @@ class CostAwareEvaluator:
                    f"--n-digits 4 --epochs {epochs} "
                    f"--seed {trial.seed} --d-model {cfg['d_model']} "
                    f"--lr {cfg['lr']}")
+        
+        # Micro tasks (baseline with BP)
+        elif task in ["xor", "xor3", "and", "and_gate", "or", "or_gate",
+                      "majority", "identity", "tiny_lm"]:
+            cmd = (f"python train_micro.py --task {task} --use-bp "
+                   f"--epochs {epochs} --seed {trial.seed} "
+                   f"--d-model {cfg['d_model']} --lr {cfg['lr']} "
+                   f"--max-iters {cfg.get('max_iters', 20)}")
         
         # RL tasks
         elif task in ["cartpole-v1", "cartpole", "acrobot-v1", "acrobot",
@@ -982,7 +1011,7 @@ class HyperOptEngine:
         """Create EqProp search space from config."""
         cfg = self.config.get("hyperopt", {}).get("eqprop_search_space", {})
         return EqPropSearchSpace(
-            beta=cfg.get("beta", [0.05, 0.1, 0.15, 0.2, 0.22, 0.25, 0.3]),
+            beta=cfg.get("beta", [0.05, 0.1, 0.15, 0.2, 0.22, 0.25, 0.3, 0.5]),
             damping=cfg.get("damping", [0.7, 0.8, 0.9, 0.95]),
             max_iters=cfg.get("max_iters", [10, 20, 50, 100]),
             tol=cfg.get("tol", [1e-4, 1e-5, 1e-6]),
@@ -1116,14 +1145,30 @@ class HyperOptEngine:
     
     def _sample_configs(self, space: SearchSpace, n: int, 
                         strategy: str, rng: random.Random) -> List[Dict]:
-        """Sample configurations from search space."""
+        """Sample configurations from search space.
+        
+        Strategies:
+        - grid: Full grid (or random subset if too large)
+        - random: Pure random sampling
+        - sobol: Quasi-random Sobol sequence (better coverage, requires scipy)
+        """
         if strategy == "grid":
             all_configs = space.grid()
             if len(all_configs) <= n:
                 return all_configs
             return rng.sample(all_configs, n)
+        
+        elif strategy == "sobol":
+            if not HAS_SCIPY:
+                print("⚠️  scipy not available, falling back to random sampling")
+                return [space.sample(rng) for _ in range(n)]
+            
+            # Use Sobol sequence for better space coverage
+            return self._sobol_sample(space, n)
+        
         elif strategy == "random":
             return [space.sample(rng) for _ in range(n)]
+        
         else:
             # Default to random
             return [space.sample(rng) for _ in range(n)]
@@ -1307,11 +1352,95 @@ class HyperOptEngine:
                 if eqprop and baseline:
                     self._print_analysis(t)
     
-    def smoke_test(self, n_trials: int = 2, task: str = "mnist"):
-        """Quick smoke test with minimal trials."""
+    def _sobol_sample(self, space: SearchSpace, n: int) -> List[Dict]:
+        """Sample using Sobol quasi-random sequence for better coverage.
+        
+        Sobol sequences provide more uniform coverage of hyperparameter space
+        than random sampling, which is critical for broad surveys.
+        """
+        # Get a representative sample to extract hyperparameter info
+        sample_config = space.sample()
+        
+        # Extract continuous and categorical dimensions
+        continuous_params = []
+        categorical_params = {}
+        
+        for key, value in sample_config.items():
+            if key == "algorithm":
+                continue
+            if isinstance(value, (int, float)):
+                continuous_params.append(key)
+            else:
+                categorical_params[key] = value
+        
+        if not continuous_params:
+            # No continuous params, fall back to random
+            return [space.sample() for _ in range(n)]
+        
+        # Generate Sobol samples for continuous dimensions
+        sampler = qmc.Sobol(d=len(continuous_params), scramble=True, seed=42)
+        samples = sampler.random(n)
+        
+        # Convert to hyperparameter space
+        configs = []
+        for sample in samples:
+            config = sample_config.copy()  # Start with template
+            
+            # Map Sobol samples [0, 1] to hyperparameter ranges
+            all_grid = space.grid()
+            if not all_grid:
+                continue
+            
+            # For each continuous parameter, quantize to available values
+            for i, param in enumerate(continuous_params):
+                # Get unique values for this parameter
+                values = sorted(set(cfg[param] for cfg in all_grid if param in cfg))
+                if values:
+                    # Map [0,1] to index in values
+                    idx = int(sample[i] * len(values))
+                    idx = min(idx, len(values) - 1)  # Clamp
+                    config[param] = values[idx]
+            
+            configs.append(config)
+        
+        return configs
+    
+    def smoke_test(self, n_trials: int = 2, task: str = "xor", ultra_fast: bool = True):
+        """Quick smoke test with minimal trials.
+        
+        Args:
+            n_trials: Number of trials per algorithm
+            task: Task to test (default: xor for ultra-fast)
+            ultra_fast: If True, use d_model=8 for 5-10s runs
+        """
         print("\n🧪 SMOKE TEST MODE")
+        if ultra_fast:
+            print("⚡ ULTRA-FAST: d_model=8, micro task, <10s per trial, single seed")
         print("=" * 70)
-        self.run(task=task, n_trials=n_trials, epochs=1, headless=True)
+        
+        # Override search spaces for ultra-fast testing
+        if ultra_fast:
+            self.eqprop_space = EqPropSearchSpace(
+                beta=[0.2, 0.25],
+                damping=[0.8],
+                max_iters=[10, 20],
+                tol=[1e-4],
+                attention_type=["linear"],
+                symmetric=[False],
+                update_mode=["mse_proxy"],
+                d_model=[8, 16],  # Ultra-small for speed
+                lr=[1e-3]
+            )
+            self.baseline_space = BaselineSearchSpace(
+                lr=[1e-3, 5e-3],
+                optimizer=["adam"],
+                d_model=[8, 16],  # Match EqProp
+                weight_decay=[0],
+                scheduler=["none"]
+            )
+        
+        # Use only 1 seed for smoke tests (3x faster)
+        self.run(task=task, n_trials=n_trials, epochs=1, seeds=[0], headless=True)
     
     def run_campaign(self, tasks: List[str] = None, n_trials: int = 10,
                      strategy: str = "random", seeds: List[int] = None,
@@ -1486,6 +1615,7 @@ Examples:
 Supported Tasks:
   Classification: mnist, fashion, cifar10, svhn
   Algorithmic:    parity, parity_12, copy, addition
+  Micro:          xor, xor3, and, or, majority, identity, tiny_lm
   RL:             cartpole, acrobot, mountaincar, lunarlander
   Memory:         memory
         """
@@ -1513,8 +1643,8 @@ Supported Tasks:
     parser.add_argument("--n-trials", type=int, default=10,
                        help="Number of trials per algorithm")
     parser.add_argument("--strategy", type=str, default="random",
-                       choices=["grid", "random"],
-                       help="Search strategy")
+                       choices=["grid", "random", "sobol"],
+                       help="Search strategy (sobol recommended for broad survey)")
     parser.add_argument("--epochs", type=int, default=3,
                        help="Training epochs per trial")
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2],
@@ -1523,6 +1653,8 @@ Supported Tasks:
     # Speed/quality tradeoffs
     parser.add_argument("--rapid", action="store_true",
                        help="Rapid mode: fewer epochs, smaller configs, faster feedback")
+    parser.add_argument("--ultra-fast", action="store_true",
+                       help="Ultra-fast smoke test: d_model=8, micro tasks (<10s/trial)")
     parser.add_argument("--headless", action="store_true",
                        help="Suppress training output (still shows progress)")
     
@@ -1535,7 +1667,11 @@ Supported Tasks:
     engine = HyperOptEngine(args.config)
     
     if args.smoke_test:
-        engine.smoke_test(n_trials=2, task=args.task)
+        engine.smoke_test(
+            n_trials=2, 
+            task=args.task,
+            ultra_fast=args.ultra_fast
+        )
     elif args.campaign:
         engine.run_campaign(
             tasks=args.tasks,
