@@ -88,6 +88,11 @@ For rigorous analysis, we provide 5 simplified variants in `src/simplified_model
 | **ResidualEqProp** | Linear + Res | **Minimalism**. Single weight matrix dynamics for theoretical tractability. |
 | **GatedEqProp** | Gated Update | **Control**. Learnable gates determine when equilibrium is reached. |
 
+### ToroidalMLP Logic (Pure TEP)
+The `ToroidalMLP` implements the "Pure TEP" specification with a recirculation buffer:
+$$s(t+1) = s(t) + \gamma \cdot [f(W \cdot s(t) + \sum \alpha_k \cdot h(t-k)) - s(t)]$$
+where $h(t-k)$ represents the history of states buffered in the torus.
+
 ---
 
 ## 🧠 Training Algorithm (Complete Spec)
@@ -140,6 +145,21 @@ To ensure fast equilibrium finding:
 1.  **Damping**: $\alpha \approx 0.5$ stabilizes oscillations.
 2.  **Anderson Acceleration**: Extrapolates from history (optional).
 3.  **Spectral Normalization**: Keeps Lipschitz constant $< 1$ (optional).
+
+---
+
+## 🎛️ Hyperparameter Reference
+
+For exact reproducibility of our **92.37% MNIST** result, use these validated settings:
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| **Beta (β)** | `0.22` | **Fixed** (Do not anneal). Optimal tradeoff between training signal and gradient bias. |
+| **Damping (α)** | `0.5` - `0.8` | Lower is more stable, higher is faster. |
+| **Max Steps** | `50` (Train), `15` (Eval) | Equilibrium typically reached in <10 steps. |
+| **Learning Rate** | `0.002` | AdamW optimizer. |
+| **Layers** | `1` | Single looped block is sufficient for MNIST. |
+| **Dimensions** | `d_model=256`, `n_heads=8` | Width is more important than depth for EqProp. |
 
 ---
 
