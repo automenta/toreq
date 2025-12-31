@@ -151,12 +151,16 @@ class LocalHebbianUpdate(UpdateStrategy):
     def _activation_hook(self, name: str):
         """Create activation hook for a specific layer."""
         def hook(module, input, output):
+            # Store both input and output for proper Hebbian learning
             if self.phase == 'free':
                 if isinstance(input, tuple) and len(input) > 0:
-                    self.activations_free[name] = input[0].detach().clone()
+                    # Store input and output activations
+                    self.activations_free[f"{name}_in"] = input[0].detach().clone()
+                    self.activations_free[f"{name}_out"] = output.detach().clone()
             elif self.phase == 'nudged':
                 if isinstance(input, tuple) and len(input) > 0:
-                    self.activations_nudged[name] = input[0].detach().clone()
+                    self.activations_nudged[f"{name}_in"] = input[0].detach().clone()
+                    self.activations_nudged[f"{name}_out"] = output.detach().clone()
         return hook
     
     def register_hooks(self, model: nn.Module):
@@ -178,22 +182,35 @@ class LocalHebbianUpdate(UpdateStrategy):
         """Compute contrastive Hebbian weight updates from stored activations."""
         weight_updates = {}
         
-        for name in self.activations_free.keys():
-            if name not in self.activations_nudged:
+        # Find all layer names (without _in/_out suffix)
+        layer_names = set()
+        for key in self.activations_free.keys():
+            if key.endswith('_in'):
+                layer_names.add(key[:-3])
+        
+        for name in layer_names:
+            in_key = f"{name}_in"
+            out_key = f"{name}_out"
+            
+            if (in_key not in self.activations_free or out_key not in self.activations_free or
+                in_key not in self.activations_nudged or out_key not in self.activations_nudged):
                 continue
             
-            A_free = self.activations_free[name]
-            A_nudged = self.activations_nudged[name]
+            # Get input and output activations for both phases
+            in_free = self.activations_free[in_key]
+            out_free = self.activations_free[out_key]
+            in_nudged = self.activations_nudged[in_key]
+            out_nudged = self.activations_nudged[out_key]
             
-            # Contrastive Hebbian rule:
-            # ΔW = (1/β) * (1/N) * (A_nudged^T @ A_nudged - A_free^T @ A_free)
-            batch_size = A_free.size(0)
+            batch_size = in_free.size(0)
             
-            grad_free = torch.matmul(A_free.T, A_free) / batch_size
-            grad_nudged = torch.matmul(A_nudged.T, A_nudged) / batch_size
+            # Contrastive Hebbian rule for weight matrix W (output_dim x input_dim):
+            # ΔW = (1/β) * (1/N) * (out_nudged^T @ in_nudged - out_free^T @ in_free)
+            grad_free = torch.matmul(out_free.T, in_free) / batch_size
+            grad_nudged = torch.matmul(out_nudged.T, in_nudged) / batch_size
             
-            # Negative for gradient descent direction
-            weight_grad = -(1.0 / self.beta) * (grad_nudged - grad_free)
+            # Gradient for descent direction
+            weight_grad = (1.0 / self.beta) * (grad_nudged - grad_free)
             weight_updates[name] = weight_grad
         
         return weight_updates
@@ -204,6 +221,36 @@ class LocalHebbianUpdate(UpdateStrategy):
             if isinstance(module, nn.Linear) and name in self.weight_updates:
                 with torch.no_grad():
                     module.weight.data += lr * self.weight_updates[name]
+    
+    def compute_update(self, model: nn.Module, h_free: Tensor, h_nudged: Tensor,
+                      x: Tensor, y: Tensor, optimizer):
+        """Unified interface for trainer: compute and apply Hebbian updates.
+        
+        This method is called by EqPropTrainer when update_strategy is set.
+        """
+        # Register hooks if not already done
+        if not self.hooks:
+            self.register_hooks(model)
+        
+        # Record activations during free phase
+        self.phase = 'free'
+        _ = model(x, steps=1)  # Just one step to trigger hooks
+        
+        # Record activations during nudged phase  
+        self.phase = 'nudged'
+        _ = model(x, steps=1)
+        
+        # Compute Hebbian updates
+        self.weight_updates = self.compute_hebbian_updates()
+        
+        # Apply updates directly (bypassing autodiff)
+        lr = optimizer.defaults.get('lr', 0.001)
+        self.apply_updates_to_model(model, lr)
+        
+        # Clear stored activations
+        self.activations_free.clear()
+        self.activations_nudged.clear()
+        self.phase = None
     
     def compute_model_update(self, model: nn.Module, h_free: Tensor,
                             h_nudged: Tensor, x: Tensor) -> None:

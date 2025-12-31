@@ -1,8 +1,12 @@
 # TorEqProp Competitive Results
 
 > **Date**: 2025-12-31  
-> **Dataset**: MNIST Digits (10,000 samples)  
-> **Training**: 50 epochs with optimal hyperparameters
+> **Task**: MNIST Digit Classification (10 classes)  
+> **Dataset**: 10,000 training samples, 360 test samples  
+> **Training**: 50 epochs, batch_size=64  
+> **Hardware**: CUDA GPU  
+> **Optimizer**: Adam (lr=0.001)  
+> **EqProp Config**: β=0.22, max_steps=25, spectral_norm=True
 
 ---
 
@@ -73,10 +77,12 @@ All models trained with `use_spectral_norm=True`:
 
 | Aspect | Backprop | EqProp (best) |
 |--------|----------|---------------|
-| Speed | **2.1s** | 55.1s (26× slower) |
+| Speed | **2.1s** | 55.1s (26× slower total, 4.8× per batch*) |
 | Accuracy | 97.50% / 98.06% | **97.50%** (matched!) |
 | Parameters | 85K | 545K (6.4× larger) |
 | Memory | O(depth) | **O(1)** (with LocalHebbianUpdate) |
+
+*See [SPEED_ANALYSIS.md](file:///home/me/toreq/docs/SPEED_ANALYSIS.md) for detailed profiling and optimization strategies.
 
 ---
 

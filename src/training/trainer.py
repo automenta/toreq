@@ -11,12 +11,14 @@ class EqPropTrainer:
     2. Nudged Phase: h_beta = relax(x, nudge_target)
     3. Update: delta_theta ~ (dE(h_beta) - dE(h*)) / beta
     """
-    def __init__(self, model, optimizer, beta=0.22, alpha=0.5, epsilon=1e-4, max_steps=50):
+    def __init__(self, model, optimizer, beta=0.22, alpha=0.5, epsilon=1e-4, max_steps=50,
+                 update_strategy=None):
         self.model = model
         self.optimizer = optimizer
         self.beta = beta
         self.solver = EquilibriumSolver(epsilon, max_steps)
         self.criterion = nn.CrossEntropyLoss()
+        self.update_strategy = update_strategy  # None = standard MSEProxyUpdate
 
     def step(self, x, y):
         self.optimizer.zero_grad()
@@ -53,50 +55,26 @@ class EqPropTrainer:
         h_nudged = h_nudged.detach()
         
         # --- 3. WEIGHT UPDATE (Contrastive) ---
-        # We need to accumulate gradients:
-        # grad_params approx - (dE(h_nudged)/d_theta - dE(h_free)/d_theta) / beta
-        #
-        # Hacky way using Autograd:
-        # E(h) ~ Energy. 
-        # But wait, Scellier (2017) eq 6:
-        # delta theta = -(1/beta) ( partial_L_free - partial_L_nudged ) ? No.
-        #
-        # Standard implementation trick:
-        # Backward on Energy function at both points.
-        #
-        # E = 0.5 ||h||^2 - sum(phi(Wx x + Wh h ...))
-        #
-        # Alternatively, using the primitive difference rule:
-        # Neural dynamics result in dE/dTheta being related to local activity.
-        # For a layer h = f(Wh), dE/dW = - h_out * h_in.
-        # So update is: (h_nudged_out * h_nudged_in - h_free_out * h_free_in) / beta
-        
-        # Calculate Energy Gradients at Free State
-        # We enable grad on weights, but treat h as fixed constant.
-        # We need to construct the surrogate loss that generates dE/dTheta.
-        #
-        # Energy E ≈ "Local Potential"
-        # For standard discrete RNN step h = tanh(u), energy is complicated.
-        # BUT, the beautiful "Gradient Estimate" is simply:
-        # Backprop through the "Energy Function" at two points.
-        
-        # Let's compute a "Surrogate Energy" J(theta) s.t. grad(J) = dE/dtheta
-        # J_free = Energy(h_free, x)
-        # J_nudged = Energy(h_nudged, x)
-        # Loss = (1/beta)*(J_free - J_nudged)
-        
-        # Capture buffer from solver
-        buffer_free = info_free.get('buffer', [])
-        buffer_nudged = info_nudged.get('buffer', [])
+        # Use update_strategy if provided (e.g., LocalHebbianUpdate for O(1) memory)
+        if self.update_strategy is not None:
+            # Use custom update strategy
+            self.update_strategy.compute_update(
+                self.model, h_free, h_nudged, x, y, self.optimizer
+            )
+        else:
+            # Standard approach: backprop through energy function
+            # Capture buffer from solver
+            buffer_free = info_free.get('buffer', [])
+            buffer_nudged = info_nudged.get('buffer', [])
 
-        # Calculate Energy per state
-        E_free = self.compute_energy(h_free, x, buffer_free)
-        E_nudged = self.compute_energy(h_nudged, x, buffer_nudged)
-        
-        surrogate_loss = (E_nudged - E_free) / self.beta
-        surrogate_loss.backward()
-        
-        self.optimizer.step()
+            # Calculate Energy per state
+            E_free = self.compute_energy(h_free, x, buffer_free)
+            E_nudged = self.compute_energy(h_nudged, x, buffer_nudged)
+            
+            surrogate_loss = (E_nudged - E_free) / self.beta
+            surrogate_loss.backward()
+            
+            self.optimizer.step()
         
         return {
             "loss": loss.item(), 

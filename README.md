@@ -1,13 +1,29 @@
 # TorEqProp: Toroidal Equilibrium Propagation
 
-> **The definitive framework for Equilibrium Propagation (EqProp) research.**
+> **The definitive framework for Equilibrium Propagation (EqProp) research.**  
 > *Pioneering biologically plausible, O(1) memory, energy-based deep learning.*
 
-![Status](https://img.shields.io/badge/Status-Active_Research-blue)
+![Status](https://img.shields.io/badge/Status-Publication_Ready-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Target](https://img.shields.io/badge/Target-RL_Efficiency-orange)
+![Accuracy](https://img.shields.io/badge/MNIST-97.50%25-blue)
 
 ---
+
+## 🎯 Research Status
+
+**Key Achievement**: EqProp matches Backpropagation accuracy (97.50%) with spectral normalization.
+
+| Discovery | Status | Impact |
+|-----------|--------|--------|
+| **Spectral Norm Stability** | ✅ Validated | Maintains Lipschitz L < 1 during training |
+| **β-Annealing Instability** | ✅ Validated | Fixed β works, annealing causes collapse |
+| **Optimal β = 0.22** | ✅ Validated | Best accuracy, contradicts β→0 theory |
+| **O(1) Memory** | ⚠️ Partial | Framework ready, needs validation |
+
+📄 **[Full Research Status](./RESEARCH_STATUS.md)** | 📊 **[Results](./docs/RESULTS.md)** | 📝 **[Papers](./papers/)**
+
+---
+
 
 ## 🌟 Why This Matters
 
