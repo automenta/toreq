@@ -1,0 +1,6 @@
+2025-12-31 10:24:23,142 - INFO - Loaded accuracy results from /tmp/competitive_benchmark.json
+2025-12-31 10:24:23,142 - INFO - ResearchManager initialized successfully
+2025-12-31 10:24:23,144 - INFO - Saved state to /home/me/toreq/.research_state.json
+2025-12-31 10:25:29,468 - INFO - Loaded accuracy results from /tmp/competitive_benchmark.json
+2025-12-31 10:25:29,469 - INFO - Loaded previous state from /home/me/toreq/.research_state.json
+2025-12-31 10:25:29,469 - INFO - ResearchManager initialized successfully
