@@ -2,10 +2,11 @@ import optuna
 import torch
 import torch.optim as optim
 import time
-from src.models import LoopedMLP, ToroidalMLP, BackpropMLP
-from src.training import EqPropTrainer, get_mnist_loaders
+from src.models import LoopedMLP, ToroidalMLP, BackpropMLP, ModernEqProp
+from src.training import EqPropTrainer
+from src.tasks import get_task_loader
 
-def objective(trial, model_type="LoopedMLP", time_budget=None, epochs=1, dataset_size=1000, device="cpu"):
+def objective(trial, model_type="LoopedMLP", time_budget=None, epochs=1, dataset_size=1000, task_name="mnist", device="cpu"):
     """
     Optuna objective function.
     """
@@ -24,25 +25,24 @@ def objective(trial, model_type="LoopedMLP", time_budget=None, epochs=1, dataset
         max_steps = 50
         epsilon = 1e-4
     
+    # Data
+    train_loader, test_loader, input_dim, output_dim = get_task_loader(task_name, batch_size=64, dataset_size=dataset_size)
+    
     # Model
-    input_dim = 784
-    #hidden_dim = trial.suggest_categorical("hidden_dim", [64, 128, 256, 512, 1024])
-    hidden_dim = trial.suggest_categorical("hidden_dim", [128])
-    output_dim = 10
+    # input_dim, output_dim set by task
+    hidden_dim = trial.suggest_categorical("hidden_dim", [16, 32, 64, 128, 256])
     
     if model_type == "LoopedMLP":
         model = LoopedMLP(input_dim, hidden_dim, output_dim, alpha=alpha, symmetric=symmetric).to(device)
     elif model_type == "ToroidalMLP":
         model = ToroidalMLP(input_dim, hidden_dim, output_dim, alpha=alpha, decay=buffer_decay).to(device)
+    elif model_type == "ModernEqProp":
+        model = ModernEqProp(input_dim, hidden_dim, output_dim, gamma=alpha).to(device)
     elif model_type == "BackpropMLP":
         depth = trial.suggest_categorical("depth", [1])
         model = BackpropMLP(input_dim, hidden_dim, output_dim, depth=depth).to(device)
         
     optimizer = optim.AdamW(model.parameters(), lr=lr)
-    
-    # Data
-    # Use configurable dataset size
-    train_loader, test_loader = get_mnist_loaders(batch_size=64, train_size=dataset_size, test_size=500)
     
     # Training Loop
     trainer = EqPropTrainer(model, optimizer, beta=beta, alpha=alpha, epsilon=epsilon, max_steps=max_steps)
@@ -88,15 +88,16 @@ def objective(trial, model_type="LoopedMLP", time_budget=None, epochs=1, dataset
 
     return accuracy, (time.time() - start_time), param_count
 
-def run_study(study_name, model_type="LoopedMLP", n_trials=10, time_budget=60, epochs=1, dataset_size=1000):
+def run_study(study_name, model_type="LoopedMLP", n_trials=10, time_budget=60, epochs=1, dataset_size=1000, task_name="mnist"):
     # Multi-objective: Maximize Acc, Minimize Time, Minimize Params
+    full_study_name = f"{task_name}_{study_name}"
     study = optuna.create_study(directions=["maximize", "minimize", "minimize"], 
-                                study_name=study_name, 
-                                storage=f"sqlite:///{study_name}.db", 
+                                study_name=full_study_name, 
+                                storage=f"sqlite:///{full_study_name}.db", 
                                 load_if_exists=True)
     
     def func(trial):
-        return objective(trial, model_type, time_budget, epochs=epochs, dataset_size=dataset_size, device="cuda" if torch.cuda.is_available() else "cpu")
+        return objective(trial, model_type, time_budget, epochs=epochs, dataset_size=dataset_size, task_name=task_name, device="cuda" if torch.cuda.is_available() else "cpu")
         
     study.optimize(func, n_trials=n_trials, timeout=time_budget*5) 
     
