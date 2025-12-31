@@ -47,10 +47,9 @@ class LoopedMLP(nn.Module):
             
         return self.Head(h)
     
-    def energy(self, h, x):
+    def energy(self, h, x, buffer_list=None): # buffer_list ignored
         """
-        Scalar energy function E(h; x).
-        Assumes symmetric weights for valid energy definition: Wh = Wh.T
+        Scalar Energy function. 
         E = 0.5 * ||h||^2 - Sum(LogCosh(Wx x + Wh h))
         """
         # Note: We rely on the autograd to compute dE/dTheta.

@@ -85,22 +85,13 @@ class EqPropTrainer:
         # J_nudged = Energy(h_nudged, x)
         # Loss = (1/beta)*(J_free - J_nudged)
         
+        # Capture buffer from solver
+        buffer_free = info_free.get('buffer', [])
+        buffer_nudged = info_nudged.get('buffer', [])
+
         # Calculate Energy per state
-        E_free = self.compute_energy(h_free, x)
-        E_nudged = self.compute_energy(h_nudged, x)
-        
-        # EqProp Estimate:
-        # grad_loss = (dE(h_beta) - dE(h_free)) / beta ?? 
-        # Update rule: theta += epsilon * (dE/dtheta|_free - dE/dtheta|_nudge) / beta ??
-        # Wait, if we minimize Energy in free phase...
-        # The update is proportional to -(dE_nudged - dE_free).
-        # We want to lower E_nudged and raise E_free? 
-        # Usually we want params to make the Free state look more like the Nudged state.
-        # So we want to Lower Energy of Nudged state.
-        # Loss = (E_nudged - E_free) / beta.
-        #
-        # WARNING: PyTorch minimizes Loss.
-        # If we minimize (E_nudged - E_free), we lower E_nudged and raise E_free. Correct.
+        E_free = self.compute_energy(h_free, x, buffer_free)
+        E_nudged = self.compute_energy(h_nudged, x, buffer_nudged)
         
         surrogate_loss = (E_nudged - E_free) / self.beta
         surrogate_loss.backward()
@@ -109,7 +100,7 @@ class EqPropTrainer:
         
         return {"loss": loss.item(), "steps_free": info_free['steps'], "steps_nudged": info_nudged['steps']}
         
-    def compute_energy(self, h, x):
+    def compute_energy(self, h, x, buffer=None):
         # We need the Energy E such that h_{t+1} approx h_t - grad_h E.
         # For h = tanh(Wx + Wh h), this corresponds to
         # E = 0.5*||h||^2 - sum( LogCosh(Wx + Wh h) ) ??
@@ -145,5 +136,5 @@ class EqPropTrainer:
         #
         # Let's implement the `energy` method on the model to keep this clean.
         
-        return self.model.energy(h, x)
+        return self.model.energy(h, x, buffer)
 

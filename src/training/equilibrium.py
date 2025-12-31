@@ -69,6 +69,6 @@ class EquilibriumSolver:
                 # Convergence check
                 diff = torch.norm(h - h_prev, dim=1).max()
                 if diff < self.epsilon:
-                    return h, {"steps": t+1, "converged": True}
+                    return h, {"steps": t+1, "converged": True, "buffer": buffer}
 
-        return h, {"steps": self.max_steps, "converged": False}
+        return h, {"steps": self.max_steps, "converged": False, "buffer": buffer}

@@ -65,15 +65,22 @@ class ToroidalMLP(nn.Module):
             
         return self.Head(h)
 
-    def energy(self, h, x):
+    def energy(self, h, x, buffer_list=None):
         """
-        Approximate Energy function. Treat buffer as constant bias if not passed.
-        E = 0.5 * ||h||^2 - Sum(LogCosh(Wx x + Wh h))
+        Approximate Energy function. 
+        E = 0.5 * ||h||^2 - Sum(LogCosh(Wx x + Wh h + Gamma * Buffer))
         """
         term1 = 0.5 * torch.sum(h ** 2)
         
-        pre_act = self.Wx(x) + self.Wh(h)
-        # Note: Ignoring buffer term in energy calc for now as it's historical.
+        # Calculate buffer term exactly as in forward_step
+        buffer_input = torch.zeros_like(h)
+        if buffer_list and self.buffer_size > 0:
+            current_buffer_len = len(buffer_list)
+            weights = self.buffer_alphas[:current_buffer_len].view(-1, 1, 1)
+            stack = torch.stack(buffer_list) 
+            buffer_input = (stack * weights).sum(dim=0)
+
+        pre_act = self.Wx(x) + self.Wh(h) + self.buffer_gamma * buffer_input
         
         abs_pre = torch.abs(pre_act)
         log_cosh = abs_pre + torch.nn.functional.softplus(-2 * abs_pre) - 0.693147

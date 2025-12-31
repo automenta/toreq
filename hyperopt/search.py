@@ -16,6 +16,14 @@ def objective(trial, model_type="LoopedMLP", time_budget=None, device="cpu"):
     symmetric = trial.suggest_categorical("symmetric", [True, False]) if model_type == "LoopedMLP" else False
     buffer_decay = trial.suggest_float("buffer_decay", 0.5, 0.99) if model_type == "ToroidalMLP" else 0.9
     
+    # Dynamics parameters
+    if model_type != "BackpropMLP":
+        max_steps = trial.suggest_categorical("max_steps", [20, 50, 100])
+        epsilon = trial.suggest_categorical("epsilon", [1e-3, 1e-4, 1e-5])
+    else:
+        max_steps = 50
+        epsilon = 1e-4
+    
     # Model
     input_dim = 784
     hidden_dim = 256
@@ -35,7 +43,7 @@ def objective(trial, model_type="LoopedMLP", time_budget=None, device="cpu"):
     train_loader, test_loader = get_mnist_loaders(batch_size=64, train_size=1000, test_size=500)
     
     # Training Loop
-    trainer = EqPropTrainer(model, optimizer, beta=beta, alpha=alpha)
+    trainer = EqPropTrainer(model, optimizer, beta=beta, alpha=alpha, epsilon=epsilon, max_steps=max_steps)
     
     start_time = time.time()
     for epoch in range(1): # Just 1 epoch for quick signal or limited time?
@@ -69,23 +77,31 @@ def objective(trial, model_type="LoopedMLP", time_budget=None, device="cpu"):
                 total += y.size(0)
                 
         accuracy = correct / total
-        trial.report(accuracy, epoch)
-        
-        if trial.should_prune():
-            raise optuna.exceptions.TrialPruned()
+        # Pruning not supported for multi-objective in this version
+        # trial.report(accuracy, epoch)
+        # if trial.should_prune():
+        #     raise optuna.exceptions.TrialPruned()
             
-    return accuracy
+    param_count = sum(p.numel() for p in model.parameters())
+
+    return accuracy, (time.time() - start_time), param_count
 
 def run_study(study_name, model_type="LoopedMLP", n_trials=10, time_budget=60):
-    study = optuna.create_study(direction="maximize", study_name=study_name, storage=f"sqlite:///{study_name}.db", load_if_exists=True)
+    # Multi-objective: Maximize Acc, Minimize Time, Minimize Params
+    study = optuna.create_study(directions=["maximize", "minimize", "minimize"], 
+                                study_name=study_name, 
+                                storage=f"sqlite:///{study_name}.db", 
+                                load_if_exists=True)
     
     def func(trial):
         return objective(trial, model_type, time_budget, device="cuda" if torch.cuda.is_available() else "cpu")
         
-    # Optimize with timeout
     study.optimize(func, n_trials=n_trials, timeout=time_budget*5) 
     
-    print(f"Best trial for {model_type}:")
-    print(f"  Value: {study.best_value}")
-    print(f"  Params: {study.best_params}")
-    return study.best_value
+    print(f"Pareto Front for {model_type}:")
+    for t in study.best_trials:
+        acc, dur, params = t.values
+        print(f"  Trial {t.number}: Acc={acc:.4f}, Time={dur:.2f}s, Params={params}, Config={t.params}")
+        
+    best_acc = max([t.values[0] for t in study.best_trials])
+    return best_acc
