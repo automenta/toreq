@@ -1,0 +1,149 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from .equilibrium import EquilibriumSolver
+
+class EqPropTrainer:
+    """
+    Implements the Equilibrium Propagation training loop.
+    Phases:
+    1. Free Phase: h* = relax(x)
+    2. Nudged Phase: h_beta = relax(x, nudge_target)
+    3. Update: delta_theta ~ (dE(h_beta) - dE(h*)) / beta
+    """
+    def __init__(self, model, optimizer, beta=0.22, alpha=0.5, epsilon=1e-4, max_steps=50):
+        self.model = model
+        self.optimizer = optimizer
+        self.beta = beta
+        self.solver = EquilibriumSolver(epsilon, max_steps)
+        self.criterion = nn.CrossEntropyLoss()
+
+    def step(self, x, y):
+        batch_size = x.size(0)
+        
+        # --- 1. FREE PHASE ---
+        # Run dynamics to equilibrium without external force
+        h_free, info_free = self.solver.solve(self.model, x)
+        h_free = h_free.detach() # Don't backprop through time
+        
+        # Compute "gradients" for nudging?
+        # Actually, for the nudged phase, we can use the explicit formulation:
+        # h_{t+1} = ... - beta * dL/dh
+        # We need dL/dh at the equilibrium point h_free.
+        
+        h_free_var = h_free.clone().requires_grad_(True)
+        y_hat = self.model.Head(h_free_var)
+        loss = self.criterion(y_hat, y)
+        loss.backward()
+        dL_dh = h_free_var.grad.detach()
+        
+        # --- 2. NUDGED PHASE ---
+        # Initialize from h_free, apply nudging force
+        # h_nudged = h_free - beta * dL_dh ? 
+        # Or do we iterate again?
+        # Scellier & Bengio (2017): Run dynamics again with clamping (nudging).
+        # "One or few steps" often suffices if starting from h_free?
+        # README says: "Repeat until ... (Nudge)"
+        
+        h_nudged, info_nudged = self.solver.solve(
+            self.model, x, h_init=h_free, nudging=True, target_grads=dL_dh, beta=self.beta
+        )
+        h_nudged = h_nudged.detach()
+        
+        # --- 3. WEIGHT UPDATE (Contrastive) ---
+        # We need to accumulate gradients:
+        # grad_params approx - (dE(h_nudged)/d_theta - dE(h_free)/d_theta) / beta
+        #
+        # Hacky way using Autograd:
+        # E(h) ~ Energy. 
+        # But wait, Scellier (2017) eq 6:
+        # delta theta = -(1/beta) ( partial_L_free - partial_L_nudged ) ? No.
+        #
+        # Standard implementation trick:
+        # Backward on Energy function at both points.
+        #
+        # E = 0.5 ||h||^2 - sum(phi(Wx x + Wh h ...))
+        #
+        # Alternatively, using the primitive difference rule:
+        # Neural dynamics result in dE/dTheta being related to local activity.
+        # For a layer h = f(Wh), dE/dW = - h_out * h_in.
+        # So update is: (h_nudged_out * h_nudged_in - h_free_out * h_free_in) / beta
+        
+        self.optimizer.zero_grad()
+        
+        # Calculate Energy Gradients at Free State
+        # We enable grad on weights, but treat h as fixed constant.
+        # We need to construct the surrogate loss that generates dE/dTheta.
+        #
+        # Energy E ≈ "Local Potential"
+        # For standard discrete RNN step h = tanh(u), energy is complicated.
+        # BUT, the beautiful "Gradient Estimate" is simply:
+        # Backprop through the "Energy Function" at two points.
+        
+        # Let's compute a "Surrogate Energy" J(theta) s.t. grad(J) = dE/dtheta
+        # J_free = Energy(h_free, x)
+        # J_nudged = Energy(h_nudged, x)
+        # Loss = (1/beta)*(J_free - J_nudged)
+        
+        # Calculate Energy per state
+        E_free = self.compute_energy(h_free, x)
+        E_nudged = self.compute_energy(h_nudged, x)
+        
+        # EqProp Estimate:
+        # grad_loss = (dE(h_beta) - dE(h_free)) / beta ?? 
+        # Update rule: theta += epsilon * (dE/dtheta|_free - dE/dtheta|_nudge) / beta ??
+        # Wait, if we minimize Energy in free phase...
+        # The update is proportional to -(dE_nudged - dE_free).
+        # We want to lower E_nudged and raise E_free? 
+        # Usually we want params to make the Free state look more like the Nudged state.
+        # So we want to Lower Energy of Nudged state.
+        # Loss = (E_nudged - E_free) / beta.
+        #
+        # WARNING: PyTorch minimizes Loss.
+        # If we minimize (E_nudged - E_free), we lower E_nudged and raise E_free. Correct.
+        
+        surrogate_loss = (E_nudged - E_free) / self.beta
+        surrogate_loss.backward()
+        
+        self.optimizer.step()
+        
+        return {"loss": loss.item(), "steps_free": info_free['steps'], "steps_nudged": info_nudged['steps']}
+        
+    def compute_energy(self, h, x):
+        # We need the Energy E such that h_{t+1} approx h_t - grad_h E.
+        # For h = tanh(Wx + Wh h), this corresponds to
+        # E = 0.5*||h||^2 - sum( LogCosh(Wx + Wh h) ) ??
+        # Or strictly Hopfield Energy E = -0.5 hWh ...
+        #
+        # Let's use the explicit Energy definition if possible, OR
+        # use the "implicit" definition via the forward pass?
+        #
+        # "Vector Field" EqProp: We don't need explicit Energy if we use
+        # (grad_h_t - grad_h_beta).
+        #
+        # Let's use the standard "Contrastive Signal" approach for general layers:
+        # We run a "forward pass" with the stored h, and backprop from the node.
+        #
+        # Easier trick:
+        # The update is roughly: h_post * h_pre' - h_post * h_pre'
+        #
+        # Let's stick to the surrogate loss Energy(h) if defined.
+        # For LoopedMLP, we need to assert the energy form. 
+        # If we assume symmetric weights, E = -0.5 hWh - hWx...
+        #
+        # Given we have Wx and Wh in the model.
+        # E = 0.5 * ||h||^2 - (sum LogCosh(Wx + Wh h)) ? No, that gives h = tanh(...).
+        # Wait, h = (1-a)h + a tanh(u). Fixed point h = tanh(u).
+        #
+        # Primitive function of tanh is LogCosh.
+        # P(u) = Sum log cosh (u_i)
+        # grad_u P = tanh(u) = h.
+        # So if we define Scalar Potential P = Sum log cosh(Wx + Wh h).
+        # Then grad_h P = Wh^T * tanh(...) = Wh^T * h (at fixed point).
+        #
+        # If W is symmetric, grad_h (0.5 hWh) = Wh.
+        #
+        # Let's implement the `energy` method on the model to keep this clean.
+        
+        return self.model.energy(h, x)
+
