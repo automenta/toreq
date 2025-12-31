@@ -30,20 +30,20 @@ class LoopedMLP(nn.Module):
             return 0.5 * (w + w.t())
         return self._Wh.weight
 
-    def forward_step(self, h, x):
+    def forward_step(self, h, x, buffer_state=None):
         wh_w = self.get_wh_weight()
         wh_b = self._Wh.bias
         
         pre_act = self.Wx(x) + F.linear(h, wh_w, wh_b)
         h_new = torch.tanh(pre_act)
-        return (1 - self.alpha) * h + self.alpha * h_new
+        return (1 - self.alpha) * h + self.alpha * h_new, None
 
     def forward(self, x, steps=30):
         batch_size = x.size(0)
         h = torch.zeros(batch_size, self.hidden_dim, device=x.device)
         
         for _ in range(steps):
-            h = self.forward_step(h, x)
+            h, _ = self.forward_step(h, x)
             
         return self.Head(h)
     

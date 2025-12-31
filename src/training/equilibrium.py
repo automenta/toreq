@@ -34,41 +34,25 @@ class EquilibriumSolver:
             h = torch.zeros(batch_size, model.hidden_dim, device=x.device)
         else:
             h = h_init.clone()
-            
-        params_frozen = True # We don't track gradients through the loop for the fixpoint
-        # BUT for EqProp, we might need gradients for the nudging calculation? 
-        # Actually EqProp "Free Phase" doesn't need autograd trace. 
-        # "Nudged Phase" needs to compute dL/dh to nudge? Or is that given?
-        # The README says: h_{t+1} <- (1-alpha)h + alpha*f(h) - beta * dL/dh.
-        # dL/dh depends on the OutputHead.
-        
-        # Check if model requires buffer (Toroidal)
-        use_buffer = hasattr(model, 'buffer_size')
-        buffer = []
 
-        with torch.no_grad(): # Dynamics are usually standard inference
+        # Handle buffer state 
+        # (For rigorous TEP, we should pass buffer_init, but for now init to None matches forward)
+        buffer_state = None 
+
+        with torch.no_grad():
             for t in range(self.max_steps):
                 h_prev = h
                 
-                if use_buffer:
-                    h = model.forward_step(h, x, buffer)
-                    buffer.insert(0, h_prev.detach())
-                    if len(buffer) > model.buffer_size:
-                        buffer.pop()
-                else:
-                    h = model.forward_step(h, x)
+                # Generic step: inputs h, x, prev_buffer -> outputs h_new, new_buffer
+                h, buffer_state = model.forward_step(h, x, buffer_state)
                 
-                # Apply Nudging if requested
+                # Apply Nudging
                 if nudging and target_grads is not None:
-                    # h <- h - beta * dL/dh
-                    # For simple classification, L = CrossEntropy(Head(h), y)
-                    # We usually pass the gradients explicitly or compute them here.
-                    # If we compute here, we need grad enabled for just the head.
                     h.sub_(beta * target_grads)
 
                 # Convergence check
                 diff = torch.norm(h - h_prev, dim=1).max()
                 if diff < self.epsilon:
-                    return h, {"steps": t+1, "converged": True, "buffer": buffer}
+                    return h, {"steps": t+1, "converged": True, "buffer": buffer_state}
 
-        return h, {"steps": self.max_steps, "converged": False, "buffer": buffer}
+        return h, {"steps": self.max_steps, "converged": False, "buffer": buffer_state}

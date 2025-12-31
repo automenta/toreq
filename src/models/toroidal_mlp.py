@@ -16,69 +16,51 @@ class ToroidalMLP(nn.Module):
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
         self.alpha = alpha
-        self.buffer_size = buffer_size
+        self.decay = decay
         
-        # Buffer weights: exponential decay
-        raw_alphas = [decay ** (k+1) for k in range(buffer_size)]
-        self.register_buffer('buffer_alphas', torch.tensor(raw_alphas))
-
         self.Wx = nn.Linear(input_dim, hidden_dim, bias=True)
         self.Wh = nn.Linear(hidden_dim, hidden_dim, bias=True)
         self.Head = nn.Linear(hidden_dim, output_dim, bias=True)
         
-        # Recirculation mixing weight
         self.buffer_gamma = nn.Parameter(torch.tensor(0.1))
 
         nn.init.orthogonal_(self.Wh.weight)
         with torch.no_grad():
             self.Wh.weight.mul_(0.9)
 
-    def forward_step(self, h, x, buffer_list):
-        # buffer_list: [h_{t-1}, h_{t-2}, ...]
-        
-        buffer_input = torch.zeros_like(h)
-        if buffer_list and self.buffer_size > 0:
-            current_buffer_len = len(buffer_list)
-            # Weights: [History, 1, 1] for broadcasting
-            weights = self.buffer_alphas[:current_buffer_len].view(-1, 1, 1)
-            stack = torch.stack(buffer_list) # [History, Batch, Dim]
-            buffer_input = (stack * weights).sum(dim=0)
+    def forward_step(self, h, x, buffer_state):
+        # buffer_state: EMA of past history
+        if buffer_state is None:
+            buffer_input = torch.zeros_like(h)
+            # Init next state
+            new_buffer = h.detach() * self.decay 
+        else:
+            buffer_input = buffer_state
+            # Update: new_buffer = old_buffer * decay + current_h * decay
+            new_buffer = buffer_state * self.decay + h.detach() * self.decay
             
         pre_act = self.Wx(x) + self.Wh(h) + self.buffer_gamma * buffer_input
         h_new = torch.tanh(pre_act)
-        return (1 - self.alpha) * h + self.alpha * h_new
+        
+        return (1 - self.alpha) * h + self.alpha * h_new, new_buffer
 
     def forward(self, x, steps=30):
         batch_size = x.size(0)
         h = torch.zeros(batch_size, self.hidden_dim, device=x.device)
-        buffer = []
+        buffer_state = None
         
         for _ in range(steps):
-            h_next = self.forward_step(h, x, buffer)
-            
-            # Update buffer
-            buffer.insert(0, h.detach()) # Store history
-            if len(buffer) > self.buffer_size:
-                buffer.pop()
-            
-            h = h_next
+            h, buffer_state = self.forward_step(h, x, buffer_state)
             
         return self.Head(h)
 
-    def energy(self, h, x, buffer_list=None):
-        """
-        Approximate Energy function. 
-        E = 0.5 * ||h||^2 - Sum(LogCosh(Wx x + Wh h + Gamma * Buffer))
-        """
+    def energy(self, h, x, buffer_state=None):
         term1 = 0.5 * torch.sum(h ** 2)
         
-        # Calculate buffer term exactly as in forward_step
-        buffer_input = torch.zeros_like(h)
-        if buffer_list and self.buffer_size > 0:
-            current_buffer_len = len(buffer_list)
-            weights = self.buffer_alphas[:current_buffer_len].view(-1, 1, 1)
-            stack = torch.stack(buffer_list) 
-            buffer_input = (stack * weights).sum(dim=0)
+        if buffer_state is None:
+             buffer_input = torch.zeros_like(h)
+        else:
+             buffer_input = buffer_state
 
         pre_act = self.Wx(x) + self.Wh(h) + self.buffer_gamma * buffer_input
         

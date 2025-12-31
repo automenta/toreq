@@ -19,6 +19,8 @@ class EqPropTrainer:
         self.criterion = nn.CrossEntropyLoss()
 
     def step(self, x, y):
+        self.optimizer.zero_grad()
+
         batch_size = x.size(0)
         
         # --- 1. FREE PHASE ---
@@ -68,8 +70,6 @@ class EqPropTrainer:
         # Neural dynamics result in dE/dTheta being related to local activity.
         # For a layer h = f(Wh), dE/dW = - h_out * h_in.
         # So update is: (h_nudged_out * h_nudged_in - h_free_out * h_free_in) / beta
-        
-        self.optimizer.zero_grad()
         
         # Calculate Energy Gradients at Free State
         # We enable grad on weights, but treat h as fixed constant.
