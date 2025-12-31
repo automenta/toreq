@@ -10,21 +10,23 @@ class ToroidalMLP(nn.Module):
     h_{t+1} = (1-alpha)h_t + alpha * tanh(Wx x + Wh h_t + BufferTerm)
     BufferTerm = Sum(w_k * h_{t-k})
     """
-    def __init__(self, input_dim, hidden_dim, output_dim, alpha=0.5, buffer_size=5):
+    def __init__(self, input_dim, hidden_dim, output_dim, alpha=0.5, buffer_size=5, decay=0.9):
         super().__init__()
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
         self.alpha = alpha
         self.buffer_size = buffer_size
+        
+        # Buffer weights: exponential decay
+        raw_alphas = [decay ** (k+1) for k in range(buffer_size)]
+        self.register_buffer('buffer_alphas', torch.tensor(raw_alphas))
 
         self.Wx = nn.Linear(input_dim, hidden_dim, bias=True)
         self.Wh = nn.Linear(hidden_dim, hidden_dim, bias=True)
         self.Head = nn.Linear(hidden_dim, output_dim, bias=True)
         
-        # Buffer weights (learnable or fixed?) 
-        # For now, simplistic: fixed averaged feedback or small learnable mixing.
-        # Let's make it a single learnable scalar for the buffer influence for now.
+        # Recirculation mixing weight
         self.buffer_gamma = nn.Parameter(torch.tensor(0.1))
 
         nn.init.orthogonal_(self.Wh.weight)
@@ -32,14 +34,15 @@ class ToroidalMLP(nn.Module):
             self.Wh.weight.mul_(0.9)
 
     def forward_step(self, h, x, buffer_list):
-        # buffer_list: list of previous h states [h_{t-1}, h_{t-2}, ...]
+        # buffer_list: [h_{t-1}, h_{t-2}, ...]
         
         buffer_input = torch.zeros_like(h)
-        if buffer_list:
-            # Simple average of buffer
-            # In a real Toroidal config, this might be a convolution over time.
-            buffer_stack = torch.stack(buffer_list)
-            buffer_input = buffer_stack.mean(dim=0)
+        if buffer_list and self.buffer_size > 0:
+            current_buffer_len = len(buffer_list)
+            # Weights: [History, 1, 1] for broadcasting
+            weights = self.buffer_alphas[:current_buffer_len].view(-1, 1, 1)
+            stack = torch.stack(buffer_list) # [History, Batch, Dim]
+            buffer_input = (stack * weights).sum(dim=0)
             
         pre_act = self.Wx(x) + self.Wh(h) + self.buffer_gamma * buffer_input
         h_new = torch.tanh(pre_act)

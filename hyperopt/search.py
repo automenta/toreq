@@ -13,6 +13,8 @@ def objective(trial, model_type="LoopedMLP", time_budget=None, device="cpu"):
     alpha = trial.suggest_float("alpha", 0.1, 0.9)
     beta = trial.suggest_float("beta", 0.01, 0.5) if model_type != "BackpropMLP" else 0.0
     lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
+    symmetric = trial.suggest_categorical("symmetric", [True, False]) if model_type == "LoopedMLP" else False
+    buffer_decay = trial.suggest_float("buffer_decay", 0.5, 0.99) if model_type == "ToroidalMLP" else 0.9
     
     # Model
     input_dim = 784
@@ -20,9 +22,9 @@ def objective(trial, model_type="LoopedMLP", time_budget=None, device="cpu"):
     output_dim = 10
     
     if model_type == "LoopedMLP":
-        model = LoopedMLP(input_dim, hidden_dim, output_dim, alpha=alpha).to(device)
+        model = LoopedMLP(input_dim, hidden_dim, output_dim, alpha=alpha, symmetric=symmetric).to(device)
     elif model_type == "ToroidalMLP":
-        model = ToroidalMLP(input_dim, hidden_dim, output_dim, alpha=alpha).to(device)
+        model = ToroidalMLP(input_dim, hidden_dim, output_dim, alpha=alpha, decay=buffer_decay).to(device)
     elif model_type == "BackpropMLP":
         model = BackpropMLP(input_dim, hidden_dim, output_dim).to(device)
         

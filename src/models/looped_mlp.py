@@ -7,28 +7,34 @@ class LoopedMLP(nn.Module):
     A simple weight-tied Looped MLP.
     Dynamics: h_{t+1} = (1-alpha)h_t + alpha * tanh(W h_t + W_x x + b)
     """
-    def __init__(self, input_dim, hidden_dim, output_dim, alpha=0.5):
+    def __init__(self, input_dim, hidden_dim, output_dim, alpha=0.5, symmetric=False):
         super().__init__()
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
         self.alpha = alpha
+        self.symmetric = symmetric
 
         # Parameters
         self.Wx = nn.Linear(input_dim, hidden_dim, bias=True)
-        self.Wh = nn.Linear(hidden_dim, hidden_dim, bias=True) # Weight tied across time
+        self._Wh = nn.Linear(hidden_dim, hidden_dim, bias=True) # Underlying parameter
         self.Head = nn.Linear(hidden_dim, output_dim, bias=True)
         
-        # Initialize weights for stability (often orthogonal or small)
-        nn.init.orthogonal_(self.Wh.weight)
-        # Ensure spectral radius < 1 roughly by scaling
+        nn.init.orthogonal_(self._Wh.weight)
         with torch.no_grad():
-            self.Wh.weight.mul_(0.9)
+            self._Wh.weight.mul_(0.9)
+
+    def get_wh_weight(self):
+        if self.symmetric:
+            w = self._Wh.weight
+            return 0.5 * (w + w.t())
+        return self._Wh.weight
 
     def forward_step(self, h, x):
-        # h: [batch, hidden]
-        # x: [batch, input]
-        pre_act = self.Wx(x) + self.Wh(h)
+        wh_w = self.get_wh_weight()
+        wh_b = self._Wh.bias
+        
+        pre_act = self.Wx(x) + F.linear(h, wh_w, wh_b)
         h_new = torch.tanh(pre_act)
         return (1 - self.alpha) * h + self.alpha * h_new
 
@@ -54,7 +60,11 @@ class LoopedMLP(nn.Module):
         term1 = 0.5 * torch.sum(h ** 2)
         
         # Interaction potential: Integral of tanh is LogCosh
-        pre_act = self.Wx(x) + self.Wh(h)
+        wh_w = self.get_wh_weight()
+        wh_b = self._Wh.bias
+        
+        # Note: energy calculation needs to match forward dynamics
+        pre_act = self.Wx(x) + F.linear(h, wh_w, wh_b)
         # Stable LogCosh implementation
         # log cosh(x) = log( (e^x + e^-x)/2 )
         #             = x + softplus(-2x) - log2

@@ -81,7 +81,7 @@ For rigorous analysis, we provide 5 simplified variants in `src/simplified_model
 
 | Variant | Components | Key Novelty & Research Value |
 |---------|------------|------------------------------|
-| **LoopedMLP** | Weight-tied FFN | **Baseline**. Purest comparison of EqProp vs Backprop on identical graphs. |
+| **LoopedMLP** | Weight-tied FFN | **Baseline**. Purest comparison of EqProp vs Backprop on identical graphs. Supports `symmetric=True` for strict EBM theory. |
 | **ToroidalMLP** | FFN + Buffer | **"Pure TEP"**. Adds a temporal recirculation buffer ($h_{t-k}$) for stability. |
 | **HopfieldEqProp** | Energy Function | **Theory**. Explicit energy $E = -½h^TWh$. Connects to Nobel-winning Hopfield networks. |
 | **ConvEqProp** | Conv2d | **Vision**. Scaled implementation following Laborieux et al. (2021) for modern CIFAR/ImageNet research. |
@@ -89,13 +89,13 @@ For rigorous analysis, we provide 5 simplified variants in `src/simplified_model
 | **GatedEqProp** | Gated Update | **Control**. Learnable gates determine when equilibrium is reached. |
 
 ### ToroidalMLP Logic (Pure TEP)
-The `ToroidalMLP` implements the "Pure TEP" specification with a recirculation buffer:
-$$s(t+1) = s(t) + \gamma \cdot [f(W \cdot s(t) + \sum \alpha_k \cdot h(t-k)) - s(t)]$$
+The `ToroidalMLP` implements the "Pure TEP" specification with a recirculating buffer using **exponential decay** (fading memory):
+$$s(t+1) = s(t) + \gamma \cdot [f(W \cdot s(t) + \sum \text{decay}^{k} \cdot h(t-k)) - s(t)]$$
 
 ```mermaid
 graph TD
     X[Input x] --> Update
-    Buffer[("Recirculation Buffer <br/> h(t-1)...h(t-k)")] -->|History| Update
+    Buffer[("Recirculation Buffer <br/> Weighted History")] -->|Decay| Update
     subgraph Cell ["Toroidal Cell"]
         State[State s_t] --> Update[f of W*s + Buffer]
         Update -->|Damping| NewState[s_t+1]
@@ -208,15 +208,15 @@ We adhere to a rigorous scientific standard. Run these commands to verify our cl
 git clone https://github.com/yourusername/toreq.git
 cd toreq
 pip install -r requirements.txt
-# Verify everything works in <4 mins
-python -m hyperopt.cli --smoke-test --ultra-fast
+# Verify everything works in <30s
+python toreq.py --smoke-test
 ```
 
 ### 2. Fair Comparison Campaign
 Compare EqProp vs BP with **matched wall-clock time budgets**.
 *Note: Run multiple seeds to ensure statistical significance.*
 ```bash
-python -m hyperopt.cli --campaign --task mnist --time-budget 60 --strategy lhs --seeds 5
+python toreq.py --campaign --time-budget 300
 ```
 
 **Controls**:
