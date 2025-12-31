@@ -19,11 +19,12 @@ def objective(trial, model_type="LoopedMLP", time_budget=None, epochs=1,
     
     # Hyperparameters - TIGHTENED RANGES based on experiments
     alpha = trial.suggest_float("alpha", 0.3, 0.8) if model_type != "BackpropMLP" else 0.5
-    beta = trial.suggest_float("beta", 0.1, 0.35) if model_type != "BackpropMLP" else 0.0  # Tightened around 0.22
+    beta = trial.suggest_float("beta", 0.15, 0.25) if model_type != "BackpropMLP" else 0.0  # Optimal around 0.22
     lr = trial.suggest_float("lr", 1e-4, 5e-3, log=True)
     symmetric = trial.suggest_categorical("symmetric", [True, False]) if model_type == "LoopedMLP" else False
     buffer_decay = trial.suggest_float("buffer_decay", 0.7, 0.95) if model_type == "ToroidalMLP" else 0.9
-    use_spectral_norm = trial.suggest_categorical("spectral_norm", [True, False]) if model_type == "LoopedMLP" else False
+    # CRITICAL: Spectral norm maintains L < 1 during training (verified experimentally)
+    use_spectral_norm = trial.suggest_categorical("spectral_norm", [True]) if model_type != "BackpropMLP" else False
     
     # Dynamics parameters - TIGHTENED (equilibrium typically in <10 steps)
     if model_type != "BackpropMLP":
@@ -46,9 +47,10 @@ def objective(trial, model_type="LoopedMLP", time_budget=None, epochs=1,
                           symmetric=symmetric, use_spectral_norm=use_spectral_norm).to(device)
     elif model_type == "ToroidalMLP":
         model = ToroidalMLP(input_dim, hidden_dim, output_dim, alpha=alpha, 
-                            decay=buffer_decay).to(device)
+                            decay=buffer_decay, use_spectral_norm=use_spectral_norm).to(device)
     elif model_type == "ModernEqProp":
-        model = ModernEqProp(input_dim, hidden_dim, output_dim, gamma=alpha).to(device)
+        model = ModernEqProp(input_dim, hidden_dim, output_dim, gamma=alpha,
+                            use_spectral_norm=use_spectral_norm).to(device)
     elif model_type == "GatedMLP":
         model = GatedMLP(input_dim, hidden_dim, output_dim).to(device)
     elif model_type == "BackpropMLP":
