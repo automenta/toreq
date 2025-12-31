@@ -79,13 +79,30 @@ def get_cartpole_bc(batch_size, dataset_size):
     return train_loader, test_loader, input_dim, output_dim
 
 def get_acrobot_bc(batch_size, dataset_size):
-    # Heuristic for acrobot (dummy): just random for connection check, 
-    # or simple check on joint angles.
+    # Heuristic for acrobot: swing-up based on joint angles
+    # State: [cos(θ1), sin(θ1), cos(θ2), sin(θ2), θ1_dot, θ2_dot]
+    # Actions: 0 = -1 torque, 1 = 0, 2 = +1 torque
     input_dim = 6
     output_dim = 3
     
-    X = np.random.randn(dataset_size, input_dim).astype(np.float32)
-    y = np.random.randint(0, output_dim, size=(dataset_size,)).astype(np.int64)
+    # Generate states with realistic ranges
+    X = np.zeros((dataset_size, input_dim), dtype=np.float32)
+    theta1 = np.random.uniform(-np.pi, np.pi, dataset_size)
+    theta2 = np.random.uniform(-np.pi, np.pi, dataset_size)
+    X[:, 0] = np.cos(theta1)
+    X[:, 1] = np.sin(theta1)
+    X[:, 2] = np.cos(theta2)
+    X[:, 3] = np.sin(theta2)
+    X[:, 4] = np.random.uniform(-4, 4, dataset_size)  # θ1_dot
+    X[:, 5] = np.random.uniform(-9, 9, dataset_size)  # θ2_dot
+    
+    # Swing-up heuristic: torque in direction of tip velocity to pump energy
+    # tip_height indicator: cos(θ1) + cos(θ1 + θ2) (higher = better)
+    tip_indicator = X[:, 0] + X[:, 0] * X[:, 2] - X[:, 1] * X[:, 3]  # cos(θ1+θ2) expansion
+    # Velocity-based pumping: swing with momentum
+    momentum = X[:, 4] + X[:, 5]
+    y = np.where(tip_indicator > 0.5, 1,  # Near top: no torque (coast)
+                 np.where(momentum > 0, 2, 0)).astype(np.int64)  # Pump with direction
     
     split = int(0.8 * dataset_size)
     train_ds = TensorDataset(torch.from_numpy(X[:split]), torch.from_numpy(y[:split]))

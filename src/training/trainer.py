@@ -98,7 +98,13 @@ class EqPropTrainer:
         
         self.optimizer.step()
         
-        return {"loss": loss.item(), "steps_free": info_free['steps'], "steps_nudged": info_nudged['steps']}
+        return {
+            "loss": loss.item(), 
+            "steps_free": info_free['steps'], 
+            "steps_nudged": info_nudged['steps'],
+            "converged_free": info_free.get('converged', False),
+            "converged_nudged": info_nudged.get('converged', False)
+        }
         
     def compute_energy(self, h, x, buffer=None):
         # We need the Energy E such that h_{t+1} approx h_t - grad_h E.

@@ -4,4 +4,4 @@ from .toroidal_mlp import ToroidalMLP
 from .gated_mlp import GatedMLP
 from .modern_eqprop import ModernEqProp
 
-__all__ = ["LoopedMLP", "BackpropMLP", "ToroidalMLP"]
+__all__ = ["LoopedMLP", "BackpropMLP", "ToroidalMLP", "GatedMLP", "ModernEqProp"]
