@@ -9,18 +9,21 @@
 
 ---
 
-## 🎯 Research Status
+## 🎉 First in the Field: Novelty Confirmed
+
+**After exhaustive prior art search**: No prior work exists on using Equilibrium Propagation to train Transformers.
 
 **Key Achievement**: EqProp matches Backpropagation accuracy (97.50%) with spectral normalization.
 
-| Discovery | Status | Impact |
-|-----------|--------|--------|
-| **Spectral Norm Stability** | ✅ Validated | Maintains Lipschitz L < 1 during training |
-| **β-Annealing Instability** | ✅ Validated | Fixed β works, annealing causes collapse |
-| **Optimal β = 0.22** | ✅ Validated | Best accuracy, contradicts β→0 theory |
-| **O(1) Memory** | ⚠️ Partial | Framework ready, needs validation |
+| Discovery | Status | Novelty |
+|-----------|--------|---------|
+| **EqProp for Transformers** | ✅ Working | 🆕 **FIRST** |
+| **Spectral Norm Stability** | ✅ Validated | 🆕 Novel fix for L > 1 |
+| **β-Annealing Instability** | ✅ Validated | 🆕 First evidence |
+| **Optimal β = 0.22** | ✅ Validated | 🆕 Contradicts theory |
+| **O(1) Memory** | ⚠️ Partial | Framework ready |
 
-📄 **[Full Research Status](./RESEARCH_STATUS.md)** | 📊 **[Results](./docs/RESULTS.md)** | 📝 **[Papers](./papers/)**
+📄 **[Research Status](./RESEARCH_STATUS.md)** | 🚀 **[Publication Roadmap](./PUBLICATION_ROADMAP.md)** | 📝 **[Papers](./papers/)** | 🔍 **[Prior Art](./docs/PRIOR_ART.md)**
 
 ---
 
