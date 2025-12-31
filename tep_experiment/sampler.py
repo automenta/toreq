@@ -30,13 +30,53 @@ DEFAULT_BP_SPACE = BPSearchSpace()
 
 def sample_shared_params(
     trial: Trial,
-    space: SharedSearchSpace = DEFAULT_SHARED_SPACE
+    space: SharedSearchSpace = DEFAULT_SHARED_SPACE,
+    phase: int = 1,
 ) -> Dict[str, Any]:
     """Sample parameters shared between TEP and BP.
     
     These use identical distributions to ensure fair comparison.
+    Phase 1 constraints are applied here to avoid Optuna sampling irrelevant params.
     """
-    return space.get_optuna_suggestions(trial)
+    config = {}
+    
+    # Phase-specific n_hidden_layers sampling
+    if phase == 1:
+        # Phase 1: Single layer only
+        config["n_hidden_layers"] = 1
+    else:
+        # Phase 2+: Full range
+        config["n_hidden_layers"] = trial.suggest_int(
+            "n_hidden_layers", 
+            space.n_hidden_layers[0], 
+            space.n_hidden_layers[1]
+        )
+    
+    # Other shared parameters (same for all phases)
+    config.update({
+        "hidden_units": trial.suggest_int(
+            "hidden_units",
+            space.hidden_units_range[0],
+            space.hidden_units_range[1],
+            log=True
+        ),
+        "activation": trial.suggest_categorical(
+            "activation",
+            list(space.activation_choices)
+        ),
+        "lr": trial.suggest_float(
+            "lr",
+            space.learning_rate_range[0],
+            space.learning_rate_range[1],
+            log=True
+        ),
+        "batch_size": trial.suggest_categorical(
+            "batch_size",
+            list(space.batch_size_choices)
+        ),
+    })
+    
+    return config
 
 
 def sample_tep_params(
@@ -84,14 +124,8 @@ def sample_full_config(
     """
     config = {"algorithm": algorithm}
     
-    # Add shared parameters
-    config.update(sample_shared_params(trial, shared_space))
-    
-    # Phase-specific constraints
-    if phase == 1:
-        # Phase 1: Force single layer for focused optimization
-        config["n_hidden_layers"] = 1
-    # Phases 2 and 3 can use full range (already sampled)
+    # Add shared parameters with phase-aware sampling
+    config.update(sample_shared_params(trial, shared_space, phase=phase))
     
     # Add algorithm-specific parameters
     if algorithm == "tep":
@@ -135,9 +169,6 @@ def apply_constraints(config: Dict[str, Any]) -> Dict[str, Any]:
     
     if "eq_iters" in config:
         config["eq_iters"] = max(5, min(100, config["eq_iters"]))
-    
-    if "loop_radius" in config:
-        config["loop_radius"] = max(1, min(8, config["loop_radius"]))
     
     # Clamp learning rate
     if "lr" in config:

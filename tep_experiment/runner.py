@@ -61,6 +61,11 @@ class TrialRunner:
         else:
             self.device = device
         
+        # GPU Performance optimizations
+        if torch.cuda.is_available():
+            torch.backends.cudnn.benchmark = True  # Auto-tune convolutions
+            torch.set_float32_matmul_precision('high')  # Use TF32 on Ampere+
+        
         self.max_retries = max_retries
         self.cleanup_gpu = cleanup_gpu
         
@@ -425,30 +430,26 @@ class TrialRunner:
         # Validate hidden_units to avoid numerical issues
         hidden_units = max(4, min(512, hidden_units))
         
-        # For very small hidden_units, use fewer heads
-        n_heads = max(1, min(4, hidden_units // 4))
-        if hidden_units % n_heads != 0:
-            # Adjust n_heads to divide evenly
-            for h in [4, 2, 1]:
-                if hidden_units % h == 0:
-                    n_heads = h
-                    break
+        n_heads = config.get("_valid_n_heads", 1)  # From constraint application
+        d_ff = hidden_units * 4  # Standard transformer ratio
         
-        d_ff = max(hidden_units, hidden_units * 2)
+        # TEP-specific params (with defaults for BP)
+        attention_type = config.get("attention_type", "linear")
+        symmetric = config.get("symmetric", False)
         
-        # Embedding with proper initialization
+        # Embedding layer with proper initialization
         embedding = nn.Linear(task_spec.input_dim, hidden_units).to(self.device)
         nn.init.xavier_uniform_(embedding.weight)
         nn.init.zeros_(embedding.bias)
         
-        # Model
+        # Model - use sampled parameters!
         model = LoopedTransformerBlock(
             d_model=hidden_units,
             n_heads=n_heads,
             d_ff=d_ff,
             dropout=0.0,
-            attention_type="linear",
-            symmetric=False,
+            attention_type=attention_type,
+            symmetric=symmetric,
         ).to(self.device)
         
         # Output head with proper initialization
@@ -460,16 +461,19 @@ class TrialRunner:
         if algorithm == "tep":
             eq_iters = config.get("eq_iters", 20)
             gamma = config.get("gamma", 0.9)
+            tolerance = config.get("tolerance", 1e-4)
             # Clamp to valid ranges
             eq_iters = max(5, min(100, eq_iters))
             gamma = max(0.5, min(0.99, gamma))
+            tolerance = max(1e-6, min(1e-2, tolerance))
         else:
             eq_iters = 20  # Fixed for BP
             gamma = 0.9
+            tolerance = 1e-4
         
         solver = EquilibriumSolver(
             max_iters=eq_iters,
-            tol=1e-4,
+            tol=tolerance,
             damping=gamma,
         )
         

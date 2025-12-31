@@ -144,6 +144,7 @@ def summarize_config(config: Dict[str, Any], algorithm: str) -> str:
         parts.append(f"β={config.get('beta', '?'):.3f}")
         parts.append(f"γ={config.get('gamma', '?'):.3f}")
         parts.append(f"eq_iters={config.get('eq_iters', '?')}")
+        parts.append(f"tol={config.get('tolerance', '?'):.0e}")
         if "attention_type" in config:
             parts.append(f"attn={config.get('attention_type', '?')}")
         if "symmetric" in config:

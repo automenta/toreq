@@ -83,9 +83,6 @@ class TEPSearchSpace:
     
     These are added to the shared space for TEP trials only.
     """
-    # Loop radius: number of previous equilibrium states to reuse
-    loop_radius_range: Tuple[int, int] = (1, 8)
-    
     # Nudging strength β: controls gradient-based nudge magnitude
     nudging_beta_range: Tuple[float, float] = (0.01, 0.5)  # log-uniform
     
@@ -107,11 +104,6 @@ class TEPSearchSpace:
     def get_optuna_suggestions(self, trial) -> Dict[str, Any]:
         """Sample TEP-specific parameters."""
         return {
-            "loop_radius": trial.suggest_int(
-                "loop_radius",
-                self.loop_radius_range[0],
-                self.loop_radius_range[1]
-            ),
             "beta": trial.suggest_float(
                 "beta",
                 self.nudging_beta_range[0],

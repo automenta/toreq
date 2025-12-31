@@ -148,6 +148,7 @@ class MNIST28x28Dataset(Dataset):
 
 def get_xor_train_loader(batch_size: int = 64, n_samples: int = 2000, seed: int = 42) -> DataLoader:
     dataset = XORDataset(n_samples=n_samples, seed=seed)
+    # Small dataset - multiprocessing overhead > benefit
     return DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
 
 
@@ -158,6 +159,7 @@ def get_xor_test_loader(batch_size: int = 64, n_samples: int = 400, seed: int = 
 
 def get_digits8x8_train_loader(batch_size: int = 64, seed: int = 42) -> DataLoader:
     dataset = Digits8x8Dataset(train=True, seed=seed)
+    # Small dataset (~1400 samples) - keep simple
     return DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
 
 

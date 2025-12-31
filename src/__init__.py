@@ -14,6 +14,9 @@ Main components:
 """
 
 from .models import LoopedTransformerBlock
+from .simplified_models import (
+    LoopedMLP, ToroidalMLP, HopfieldEqProp, ConvEqProp, ResidualEqProp, GatedEqProp
+)
 from .attention import SoftmaxAttention, LinearAttention, SymmetricLinearAttention
 from .ffn import StandardFFN, SymmetricFFN
 from .solver import EquilibriumSolver
@@ -37,4 +40,10 @@ __all__ = [
     'UpdateStrategy',
     'MSEProxyUpdate',
     'VectorFieldUpdate',
+    # Simplified Models
+    'LoopedMLP',
+    'HopfieldEqProp',
+    'ConvEqProp',
+    'ResidualEqProp',
+    'GatedEqProp',
 ]
