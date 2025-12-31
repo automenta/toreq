@@ -208,6 +208,50 @@ class TinyLMDataset(Dataset):
         return x.view(-1), torch.tensor(self.labels[idx])
 
 
+class Digits8x8Dataset(Dataset):
+    """8x8 MNIST digits from scikit-learn (64 pixels).
+    
+    Uses sklearn.datasets.load_digits() for true 8x8 resolution,
+    not downsampled 28x28 MNIST. This is the Phase 1 task for
+    rapid signal detection.
+    """
+    
+    def __init__(self, train: bool = True, seed: int = 42):
+        try:
+            from sklearn.datasets import load_digits
+            from sklearn.model_selection import train_test_split
+        except ImportError:
+            raise ImportError(
+                "scikit-learn required for 8x8 digits. "
+                "Install with: pip install scikit-learn"
+            )
+        
+        digits = load_digits()
+        X = digits.data.astype(np.float32)
+        y = digits.target.astype(np.int64)
+        
+        # Normalize to [0, 1] (sklearn digits are 0-16)
+        X = X / 16.0
+        
+        # Train/test split (80/20)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=seed, stratify=y
+        )
+        
+        if train:
+            self.data = X_train
+            self.labels = y_train
+        else:
+            self.data = X_test
+            self.labels = y_test
+    
+    def __len__(self):
+        return len(self.labels)
+    
+    def __getitem__(self, idx):
+        return torch.from_numpy(self.data[idx]), torch.tensor(self.labels[idx])
+
+
 def get_micro_loader(
     task: str,
     train: bool = True,
@@ -269,6 +313,13 @@ def get_micro_loader(
         input_dim = context_len * vocab_size
         num_classes = vocab_size
     
+    elif task == "digits_8x8" or task == "digits8x8":
+        # 8x8 MNIST from sklearn (Phase 1 task)
+        train_mode = train if isinstance(train, bool) else True
+        dataset = Digits8x8Dataset(train=train_mode, seed=seed)
+        input_dim = 64
+        num_classes = 10
+    
     else:
         raise ValueError(f"Unknown micro task: {task}")
     
@@ -285,6 +336,7 @@ MICRO_TASK_INFO = {
     "majority": {"input_dim": 5, "classes": 2, "complexity": "easy"},
     "identity": {"input_dim": 4, "classes": 4, "complexity": "trivial"},
     "tiny_lm": {"input_dim": 40, "classes": 10, "complexity": "moderate"},
+    "digits_8x8": {"input_dim": 64, "classes": 10, "complexity": "phase1"},
 }
 
 

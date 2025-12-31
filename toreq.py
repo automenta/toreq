@@ -118,11 +118,24 @@ class TorEq:
                 console.print(f"\n[yellow]{task}[/yellow] ({epochs} epochs)")
                 
                 # EqProp Step
-                eq_study = self.engine.run_study(n_trials=1, task=task, algorithm="eqprop", epochs=epochs)
+                # Transfer Seeding Strategy
+                seed_params = None
+                if task == "fashion":
+                    seed_params = self.engine.get_best_params("mnist", "eqprop")
+                    if seed_params: console.print(f"  🌱 Seeding from MNIST")
+                elif task == "cifar10":
+                     seed_params = self.engine.get_best_params("fashion", "eqprop") or self.engine.get_best_params("mnist", "eqprop")
+                     if seed_params: console.print(f"  🌱 Seeding from Fashion/MNIST")
+
+                eq_study = self.engine.run_study(n_trials=1, task=task, algorithm="eqprop", epochs=epochs, seed_params=seed_params)
                 eq_trial = eq_study.trials[-1] if eq_study.trials else None
                 
                 # BP Step
-                bp_study = self.engine.run_study(n_trials=1, task=task, algorithm="bp", epochs=epochs)
+                seed_params_bp = None
+                if task == "fashion":
+                     seed_params_bp = self.engine.get_best_params("mnist", "bp")
+                
+                bp_study = self.engine.run_study(n_trials=1, task=task, algorithm="bp", epochs=epochs, seed_params=seed_params_bp)
                 bp_trial = bp_study.trials[-1] if bp_study.trials else None
                 
                 # Display Comparison

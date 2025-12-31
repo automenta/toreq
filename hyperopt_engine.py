@@ -466,7 +466,8 @@ class OptunaHyperoptEngine:
                   n_trials: int = 20, 
                   task: str = "mnist", 
                   algorithm: str = "eqprop",
-                  epochs: int = 5):
+                  epochs: int = 5,
+                  seed_params: Optional[Dict[str, Any]] = None):
         """Run an Optuna study."""
         
         study_name = f"{self.study_name}_{task}_{algorithm}"
@@ -478,23 +479,27 @@ class OptunaHyperoptEngine:
                 storage=self.storage_url,
                 load_if_exists=True,
                 direction="maximize",
-                sampler=optuna.samplers.TPESampler(seed=42),
-                pruner=optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=1)
+                sampler=optuna.samplers.TPESampler(seed=42, multivariate=True),
+                pruner=optuna.pruners.HyperbandPruner(min_resource=1, max_resource=epochs, reduction_factor=3)
             )
         except Exception as e:
             print(f"Warning: Could not create study with default settings: {e}")
             print("Trying in-memory study...")
             study = optuna.create_study(
                 direction="maximize",
-                sampler=optuna.samplers.TPESampler(seed=42),
-                pruner=optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=1)
+                sampler=optuna.samplers.TPESampler(seed=42, multivariate=True),
+                pruner=optuna.pruners.HyperbandPruner(min_resource=1, max_resource=epochs, reduction_factor=3)
             )
-
         
         print(f"🚀 Starting Optuna study: {study_name}")
         print(f"   Task: {task}")
         print(f"   Algorithm: {algorithm}")
         print(f"   Trials: {n_trials}")
+        
+        # Seeding
+        if seed_params:
+            print(f"   🌱 Seeding with params: {seed_params}")
+            study.enqueue_trial(seed_params)
         
         # Define objective function
         def objective(trial):
@@ -511,8 +516,19 @@ class OptunaHyperoptEngine:
                 seed=random.randint(1000, 9999)
             )
             
-            # 3. Run evaluation
-            h_trial = self.evaluator.evaluate(h_trial, epochs=epochs, show_progress=True)
+            # 3. Run evaluation (with pruning callback)
+            def prune_callback(line):
+                # Check for intermediate metrics in output line
+                # Expecting something like "Epoch 1/5: acc=0.85"
+                match = re.search(r"Epoch (\d+)/(\d+).*?acc[:=]\s*([\d.]+)", line, re.IGNORECASE)
+                if match:
+                    epoch = int(match.group(1))
+                    acc = float(match.group(3))
+                    trial.report(acc, epoch)
+                    if trial.should_prune():
+                        raise optuna.TrialPruned()
+
+            h_trial = self.evaluator.evaluate(h_trial, epochs=epochs, callback=prune_callback, show_progress=True)
             
             # 4. Report results if failed
             if h_trial.status != "complete":
@@ -535,8 +551,27 @@ class OptunaHyperoptEngine:
             print("\n🛑 Optimization stopped by user.")
         
         self._print_study_summary(study)
+        self.generate_report(study, study_name)
         return study
     
+    def get_best_params(self, task: str, algorithm: str) -> Optional[Dict[str, Any]]:
+        """Retrieve best parameters for a task/algorithm."""
+        study_name = f"{self.study_name}_{task}_{algorithm}"
+        try:
+            study = optuna.load_study(study_name=study_name, storage=self.storage_url)
+            return study.best_params
+        except:
+            return None
+
+    def generate_report(self, study, study_name: str):
+        """Generate visualizations for the study."""
+        try:
+            from optuna.visualization import plot_optimization_history, plot_param_importances, plot_slice
+            # Placeholder for saving plots
+            pass 
+        except ImportError:
+            pass
+
     def _sample_config(self, trial, algorithm: str) -> Dict[str, Any]:
         """Sample hyperparameters using Optuna trial."""
         
