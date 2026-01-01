@@ -127,8 +127,8 @@ class MNISTTask(BenchmarkTask):
             hidden_dim=256,
             epochs=10,
             batch_size=self.batch_size,
-            lr=1e-3,
-            beta=0.22
+            lr=3e-3,  # Optimized (was 1e-3)
+            beta=0.25  # Slightly higher for larger inputs
         )
     
     def get_loaders(self):

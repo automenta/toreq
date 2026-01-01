@@ -48,7 +48,7 @@ class SimpleMLPBaseline(nn.Module):
 def train_eqprop_model(model, train_loader, val_loader, config, verbose=False):
     """Train an EqProp model."""
     optimizer = optim.Adam(model.parameters(), lr=config.lr)
-    trainer = EqPropTrainer(model, optimizer, beta=config.beta, max_steps=20)
+    trainer = EqPropTrainer(model, optimizer, beta=config.beta, max_steps=30)
     criterion = nn.CrossEntropyLoss()
     
     best_val_acc = 0
@@ -68,7 +68,7 @@ def train_eqprop_model(model, train_loader, val_loader, config, verbose=False):
                 continue
             
             with torch.no_grad():
-                output = model(data, steps=15)
+                output = model(data, steps=25)  # More steps for MNIST
                 pred = output.argmax(dim=1)
                 train_correct += (pred == target).sum().item()
                 train_total += target.size(0)
@@ -82,7 +82,7 @@ def train_eqprop_model(model, train_loader, val_loader, config, verbose=False):
         with torch.no_grad():
             for data, target in val_loader:
                 data, target = data.to(DEVICE), target.to(DEVICE)
-                output = model(data, steps=15)
+                output = model(data, steps=25)
                 pred = output.argmax(dim=1)
                 val_correct += (pred == target).sum().item()
                 val_total += target.size(0)
@@ -154,7 +154,7 @@ def evaluate_model(model, test_loader):
         for data, target in test_loader:
             data, target = data.to(DEVICE), target.to(DEVICE)
             try:
-                output = model(data, steps=15)
+                output = model(data, steps=25)
             except TypeError:
                 output = model(data)
             pred = output.argmax(dim=1)

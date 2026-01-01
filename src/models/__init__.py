@@ -20,6 +20,9 @@ from .mstep import MSTEP
 from .mstep_enhanced import EnhancedMSTEP
 from .tep_ssr import TEPSSR
 from .htsep import HTSEP
+from .dim_aware_eqprop import (
+    DimensionScaledEqProp, EmbeddingEqProp, ProjectedEqProp, AdaptiveBetaEqProp
+)
 
 __all__ = [
     # Core
@@ -36,6 +39,11 @@ __all__ = [
     "EnhancedMSTEP",      # Multi-scale pyramid (3-scale enhanced)
     "TEPSSR",             # State-space model
     "HTSEP",              # Hyper-toroidal stochastic
+    # Dimension-aware
+    "DimensionScaledEqProp",
+    "EmbeddingEqProp",
+    "ProjectedEqProp",
+    "AdaptiveBetaEqProp",
 ]
 
 # Model registry for easy lookup
@@ -56,6 +64,11 @@ MODEL_REGISTRY = {
     'EnhancedMSTEP': EnhancedMSTEP,
     'TEPSSR': TEPSSR,
     'HTSEP': HTSEP,
+    # Dimension-aware
+    'DimensionScaledEqProp': DimensionScaledEqProp,
+    'EmbeddingEqProp': EmbeddingEqProp,
+    'ProjectedEqProp': ProjectedEqProp,
+    'AdaptiveBetaEqProp': AdaptiveBetaEqProp,
 }
 
 
