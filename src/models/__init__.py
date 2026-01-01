@@ -17,6 +17,7 @@ from .tp_eqprop import TPEqProp
 from .toreq_ode_prop import TorEqODEProp
 from .tcep import TCEP
 from .mstep import MSTEP
+from .mstep_enhanced import EnhancedMSTEP
 from .tep_ssr import TEPSSR
 from .htsep import HTSEP
 
@@ -31,7 +32,8 @@ __all__ = [
     "TPEqProp",           # Predictive coding
     "TorEqODEProp",       # Continuous ODE
     "TCEP",               # Continuous with recirculation
-    "MSTEP",              # Multi-scale pyramid
+    "MSTEP",              # Multi-scale pyramid (2-scale)
+    "EnhancedMSTEP",      # Multi-scale pyramid (3-scale enhanced)
     "TEPSSR",             # State-space model
     "HTSEP",              # Hyper-toroidal stochastic
 ]
@@ -51,6 +53,7 @@ MODEL_REGISTRY = {
     'TorEqODEProp': TorEqODEProp,
     'TCEP': TCEP,
     'MSTEP': MSTEP,
+    'EnhancedMSTEP': EnhancedMSTEP,
     'TEPSSR': TEPSSR,
     'HTSEP': HTSEP,
 }
