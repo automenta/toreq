@@ -13,6 +13,8 @@ def get_task_loader(task_name, batch_size=64, dataset_size=1000):
         return get_mnist(batch_size, dataset_size)
     elif task_name == "digits":
         return get_digits(batch_size)
+    elif task_name == "fashion-mnist":
+        return get_fashion_mnist(batch_size, dataset_size)
     elif task_name == "cartpole":
         return get_cartpole_bc(batch_size, dataset_size)
     elif task_name == "acrobot":
@@ -33,7 +35,8 @@ def get_cifar10(batch_size, dataset_size):
     train_data = datasets.CIFAR10('./data', train=True, download=True, transform=transform)
     test_data = datasets.CIFAR10('./data', train=False, download=True, transform=transform)
     
-    if dataset_size < 50000:
+    # Subsample if dataset_size is specified and less than full dataset
+    if dataset_size is not None and dataset_size < 50000:
         indices = torch.randperm(len(train_data))[:dataset_size]
         train_data = Subset(train_data, indices)
         
@@ -42,6 +45,7 @@ def get_cifar10(batch_size, dataset_size):
     
     # Return 3 channels (not flattened)
     return train_loader, test_loader, 3, 10
+
 
 
 def get_mnist(batch_size, dataset_size):
@@ -54,7 +58,26 @@ def get_mnist(batch_size, dataset_size):
     test_data = datasets.MNIST('./data', train=False, download=True, transform=transform)
     
     # Subsample
-    if dataset_size < 60000:
+    if dataset_size is not None and dataset_size < 60000:
+        indices = torch.randperm(len(train_data))[:dataset_size]
+        train_data = Subset(train_data, indices)
+
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False)
+    
+    return train_loader, test_loader, 784, 10
+
+def get_fashion_mnist(batch_size, dataset_size):
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.2860,), (0.3530,)),
+        transforms.Lambda(lambda x: torch.flatten(x))
+    ])
+    train_data = datasets.FashionMNIST('./data', train=True, download=True, transform=transform)
+    test_data = datasets.FashionMNIST('./data', train=False, download=True, transform=transform)
+    
+    # Subsample
+    if dataset_size is not None and dataset_size < 60000:
         indices = torch.randperm(len(train_data))[:dataset_size]
         train_data = Subset(train_data, indices)
 

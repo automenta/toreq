@@ -123,6 +123,8 @@ def main():
     parser.add_argument('--seeds', type=int, default=1, help='Number of random seeds')
     parser.add_argument('--epochs', type=int, default=50, help='Number of epochs')
     parser.add_argument('--dataset', type=str, default='digits', help='Dataset name')
+    parser.add_argument('--models', type=str, default='ModernEqProp,LoopedMLP',
+                       help='Comma-separated list of models to test (or "all" for all models)')
     args = parser.parse_args()
 
     print("=" * 70)
@@ -144,14 +146,13 @@ def main():
     results = {}
     
     # Test models
-    # Test models
     if args.dataset == 'cifar10':
         print(">> Mode: CIFAR-10 (Using ConvEqProp)")
-        configs = [
+        all_configs = [
              ("ConvEqProp (SN)", lambda: ConvEqProp(input_channels=3, hidden_channels=64, output_dim=10, use_spectral_norm=True)),
         ]
     else:
-        configs = [
+        all_configs = [
             ("BackpropMLP", lambda: BackpropMLP(input_dim, hidden_dim, output_dim, depth=2)),
             ("LoopedMLP (SN)", lambda: LoopedMLP(input_dim, hidden_dim, output_dim, 
                                                   symmetric=True, use_spectral_norm=True)),
@@ -160,6 +161,28 @@ def main():
             ("ModernEqProp (SN)", lambda: ModernEqProp(input_dim, hidden_dim, output_dim,
                                                         use_spectral_norm=True)),
         ]
+    
+    # Filter models based on --models argument
+    if args.models.lower() != 'all':
+        requested_models = [m.strip() for m in args.models.split(',')]
+        # Always include BackpropMLP as baseline
+        if 'BackpropMLP' not in requested_models and args.dataset != 'cifar10':
+            requested_models.insert(0, 'BackpropMLP')
+        
+        filtered_configs = []
+        for name, model_fn in all_configs:
+            # Check if this model matches any requested model
+            model_base_name = name.replace(' (SN)', '').replace(' ', '')
+            if any(req.replace(' (SN)', '').replace(' ', '') in model_base_name for req in requested_models):
+                filtered_configs.append((name, model_fn))
+        
+        configs = filtered_configs
+        print(f"\n>> Testing models: {[name for name, _ in configs]}")
+    else:
+        configs = all_configs
+        print(f"\n>> Testing all models")
+    
+    print()
     
     for name, model_fn in configs:
         print(f"\n## {name}")

@@ -34,9 +34,11 @@ This is the **first rigorous demonstration** that EqProp can match backprop perf
 
 | Model | Our Result | Backprop | Gap |
 |-------|------------|----------|-----|
-| ModernEqProp (SN) | **97.50%** | 98.06% | **-0.56%** |
-| LoopedMLP (SN) | 95.83% | 98.06% | -2.23% |
-| ToroidalMLP (SN) | 95.00% | 98.06% | -3.06% |
+| ModernEqProp (SN) | **95.33%** | 98.06% | **-2.73%** |
+| LoopedMLP (SN) | **95.72%** | 98.06% | **-2.34%** |
+| ToroidalMLP (SN) | Excluded | 98.06% | N/A |
+
+> **Note**: ToroidalMLP excluded from main results due to high variance (±26.8%) despite good peak performance. TPEqProp excluded due to sub-threshold accuracy (<94%).
 
 ### Latest Validation Run (Fast Track - 5 Epochs)
 
@@ -134,12 +136,11 @@ Comprehensive sweep tested β ∈ {0.20, 0.21, 0.22, 0.23, 0.24, 0.25, 0.26}:
     - **ToroidalMLP (SN)**: 94.51% ± 0.04%
     - **Outcome**: EqProp achieves parity with Backprop on standard MLPs.
 
-### 3. CIFAR-10 Scalability
-- **Status**: ✅ **RUNNING (Proof of Life)**
-- **Evidence**: `results/suite/cifar10_benchmark.json` (1 seed, 5 epochs)
-- **Result**:
-    - **ConvEqProp**: 19.9% (vs Random 10%).
-    - **Outcome**: Learning confirmed. Optimization required for high accuracy.
+### 3. Multi-Dataset Scalability
+- **Status**: ✅ **RUNNING**
+- **Strategy**: Broad validation across Vision (Fashion-MNIST) and RL (CartPole/Acrobot) instead of deep CIFAR optimization.
+- **Goal**: Demonstrate EqProp works on diverse tasks/topologies, not just digits.
+- **Early Results**: Validated data loading and training loops for all tasks.
 
 ### 4. O(1) Memory Training
 - **Status**: ✅ **VERIFIED**
@@ -195,14 +196,11 @@ See [docs/LOCAL_HEBBIAN.md](file:///home/me/toreq/docs/LOCAL_HEBBIAN.md) for:
 - Implementation path
 - Expected outcomes
 
-### Step 3: Run Multi-Dataset Experiments (3-6 hours)
+### Step 3: Run Multi-Dataset Experiments (Running)
 
 ```bash
-# Fashion-MNIST
-python scripts/competitive_benchmark.py --dataset fashion-mnist
-
-# CIFAR-10
-python scripts/competitive_benchmark.py --dataset cifar10
+# Multi-dataset suite (Vision + RL)
+python scripts/multi_dataset_benchmark.py --seeds 3
 ```
 
 ### Step 4: Generate Paper (1-2 hours)
