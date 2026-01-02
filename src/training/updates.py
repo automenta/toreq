@@ -210,17 +210,18 @@ class LocalHebbianUpdate(UpdateStrategy):
             grad_nudged = torch.matmul(out_nudged.T, in_nudged) / batch_size
             
             # Gradient for descent direction
-            weight_grad = (1.0 / self.beta) * (grad_nudged - grad_free)
+            # NOTE: Archive v1 used negative sign.
+            # Descent: W -= lr * grad
+            # effective grad ~ (nudged - free).
+            # So W -= lr * (nudged - free).
+            # Here we accumulate into weight_updates which is added: W += lr * update.
+            # So update should be -(nudged - free).
+            weight_grad = -(1.0 / self.beta) * (grad_nudged - grad_free)
             weight_updates[name] = weight_grad
         
         return weight_updates
     
-    def apply_updates_to_model(self, model: nn.Module, lr: float):
-        """Directly apply Hebbian updates to model parameters (bypassing autodiff)."""
-        for name, module in model.named_modules():
-            if isinstance(module, nn.Linear) and name in self.weight_updates:
-                with torch.no_grad():
-                    module.weight.data += lr * self.weight_updates[name]
+    # Removed apply_updates_to_model as we now inject into .grad
     
     def compute_update(self, model: nn.Module, h_free: Tensor, h_nudged: Tensor,
                       x: Tensor, y: Tensor, optimizer):
@@ -234,18 +235,62 @@ class LocalHebbianUpdate(UpdateStrategy):
         
         # Record activations during free phase
         self.phase = 'free'
-        _ = model(x, steps=1)  # Just one step to trigger hooks
+        # Crucial fix: Use the ACTUAL equilibrium state, not a fresh 1-step run
+        # This triggers the hooks with the converged stable state
+        with torch.no_grad():
+             model.forward_step(h_free, x, None)
         
         # Record activations during nudged phase  
         self.phase = 'nudged'
-        _ = model(x, steps=1)
+        with torch.no_grad():
+             model.forward_step(h_nudged, x, None)
         
         # Compute Hebbian updates
         self.weight_updates = self.compute_hebbian_updates()
         
-        # Apply updates directly (bypassing autodiff)
-        lr = optimizer.defaults.get('lr', 0.001)
-        self.apply_updates_to_model(model, lr)
+        # Inject Hebbian updates into gradients (for Body)
+        # This allows using the optimizer (Adam, etc) instead of manual updates
+        for name, module in model.named_modules():
+            if isinstance(module, nn.Linear) and name in self.weight_updates:
+                if name == 'Head': continue # Skip Head, train via loss
+                
+                # Handle Spectral Normalization (PyTorch Parametrizations)
+                # module.weight is a computed non-leaf tensor.
+                # The actual parameter is usually in module.parametrizations.weight.original
+                param = None
+                
+                if hasattr(module, 'parametrizations') and hasattr(module.parametrizations, 'weight'):
+                     # Modern Pytorch SN
+                     param = module.parametrizations.weight.original
+                elif hasattr(module, 'weight_orig'):
+                     # Legacy Pytorch SN
+                     param = module.weight_orig
+                else:
+                     # Standard Linear
+                     param = module.weight
+                
+                # Check if param is a leaf (crucial for optimizer)
+                if not param.is_leaf:
+                    # Fallback: try to find the leaf parameter by shape
+                    for p in module.parameters():
+                        if p.shape == module.weight.shape and p.is_leaf:
+                            param = p
+                            break
+                
+                # Gradient = weight_grad (which is free - nudged)
+                if param is not None and param.requires_grad:
+                    if param.grad is None:
+                        param.grad = self.weight_updates[name]
+                    else:
+                        param.grad += self.weight_updates[name]
+        
+        # Train Output Head via standard Backprop (Supervised)
+        # Nudged phase energy includes Cost, but explicit head training is more robust
+        head_loss = self.compute_head_update(model.Head, h_free, y)
+        head_loss.backward() # Adds to Head.weight.grad
+        
+        # Step optimizer
+        optimizer.step()
         
         # Clear stored activations
         self.activations_free.clear()

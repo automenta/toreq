@@ -64,8 +64,12 @@ def test_eqprop_constant_memory():
     for hidden_dim in hidden_dims:
         model = LoopedMLP(input_dim, hidden_dim, output_dim,
                          symmetric=True, use_spectral_norm=True).cuda()
+        from src.training.updates import LocalHebbianUpdate
         optimizer = optim.Adam(model.parameters(), lr=0.001)
-        trainer = EqPropTrainer(model, optimizer, beta=0.22, max_steps=25)
+        # Use LocalHebbianUpdate for TRUE O(1) memory
+        update_strategy = LocalHebbianUpdate(beta=0.22)
+        trainer = EqPropTrainer(model, optimizer, beta=0.22, max_steps=25,
+                               update_strategy=update_strategy)
         
         def train_step():
             optimizer.zero_grad()
