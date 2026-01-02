@@ -118,9 +118,10 @@ class EqPropKernel:
     """
     
     def __init__(self, input_dim: int, hidden_dim: int, output_dim: int,
-                 gamma: float = 0.5, beta: float = 0.22, max_steps: int = 15,
+                 gamma: float = 0.5, beta: float = 0.22, max_steps: int = 10,
                  epsilon: float = 1e-3, lr: float = 0.001,
-                 use_spectral_norm: bool = True, use_gpu: bool = False):
+                 use_spectral_norm: bool = True, use_gpu: bool = False,
+                 adaptive_epsilon: bool = True, use_fp16: bool = False):
         """Initialize EqProp kernel.
         
         Args:
@@ -129,11 +130,13 @@ class EqPropKernel:
             output_dim: Output dimension (e.g., 10 for classification)
             gamma: Damping factor for equilibrium dynamics
             beta: Nudge strength for contrastive learning
-            max_steps: Maximum equilibrium steps
+            max_steps: Maximum equilibrium steps (default: 10, optimized)
             epsilon: Convergence threshold
             lr: Learning rate
             use_spectral_norm: Whether to apply spectral normalization
             use_gpu: Whether to use CuPy (GPU)
+            adaptive_epsilon: Use relaxed epsilon after step 5 for faster convergence
+            use_fp16: Use FP16 mixed precision (experimental, GPU only)
         """
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
@@ -145,9 +148,14 @@ class EqPropKernel:
         self.lr = lr
         self.use_spectral_norm = use_spectral_norm
         self.use_gpu = use_gpu and HAS_CUPY
+        self.adaptive_epsilon = adaptive_epsilon
+        self.use_fp16 = use_fp16
         
         # Get array backend
         self.xp = get_backend(self.use_gpu)
+        
+        # Set dtype
+        self.dtype = self.xp.float16 if use_fp16 else self.xp.float32
         
         # Initialize weights (Xavier/Orthogonal-like)
         scale = 0.5
@@ -295,9 +303,15 @@ class EqPropKernel:
             if nudge_grad is not None:
                 h = h - self.beta * nudge_grad
             
-            # Check convergence
+            # Check convergence with adaptive epsilon
             diff = xp.max(xp.linalg.norm(h - h_prev, axis=1))
-            if diff < self.epsilon:
+            
+            # Adaptive threshold: relax after initial settling
+            threshold = self.epsilon
+            if self.adaptive_epsilon and t > 5:
+                threshold = self.epsilon * 2.0  # Relax for faster convergence
+            
+            if diff < threshold:
                 return h, activations_log, {'steps': t + 1, 'converged': True}
         
         return h, activations_log, {'steps': self.max_steps, 'converged': False}
