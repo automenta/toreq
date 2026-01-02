@@ -1,7 +1,7 @@
 
 <!--
 AUTO-GENERATED PAPER
-Generated: 2026-01-01T19:22:30.631563
+Generated: 2026-01-01T20:00:37.687456
 Source: /home/me/toreq/papers/spectral_normalization_paper.md
 Data validation: PASSED
 -->
@@ -116,9 +116,9 @@ We observe that **training increases the Lipschitz constant** beyond 1, breaking
 
 | Model | L (Untrained) | L (Trained, no SN) | L (Trained, with SN) |
 |-------|---------------|-------------------|---------------------|
-| LoopedMLP | 0.69 | 0.74 | **0.55** ✅ |
-| ToroidalMLP | 0.70 | **1.01** ❌ | **0.55** ✅ |
-| ModernEqProp | 0.54 | **9.50** ❌ | **0.54** ✅ |
+| LoopedMLP | N/A | 0.76 | **0.59** ✅ |
+| ToroidalMLP | N/A | 1.00 | **0.59** ✅ |
+| ModernEqProp | N/A | 21.08 | **0.58** ✅ |
 
 | Model | L (Untrained) | L (Trained) | Status |
 |-------|---------------|-------------|--------|
@@ -145,9 +145,9 @@ model = ModernEqProp(
 
 | Model | L (Untrained) | L (Trained, no SN) | L (Trained, with SN) |
 |-------|---------------|-------------------|---------------------|
-| LoopedMLP | 0.69 | 0.74 | **0.55** ✅ |
-| ToroidalMLP | 0.70 | **1.01** ❌ | **0.55** ✅ |
-| ModernEqProp | 0.54 | **9.50** ❌ | **0.54** ✅ |
+| LoopedMLP | N/A | 0.76 | **0.59** ✅ |
+| ToroidalMLP | N/A | 1.00 | **0.59** ✅ |
+| ModernEqProp | N/A | 21.08 | **0.58** ✅ |
 
 | Model | L (Trained, no SN) | L (Trained, with SN) |
 |-------|-------------------|---------------------|
@@ -212,10 +212,11 @@ for each batch (x, y) in D:
 
 | Model | Final Acc | Best Acc | Params | Time |
 |-------|-----------|----------|--------|------|
-| BackpropMLP | N/A | N/A | N/A | N/A |
-| LoopedMLP (SN) | N/A | N/A | N/A | N/A |
-| ToroidalMLP (SN) | N/A | N/A | N/A | N/A |
-| ModernEqProp (SN) | N/A | N/A | N/A | N/A |
+| BackpropMLP | 95.14% | 95.14% | N/A | 19.6s |
+| LoopedMLP (SN) | 94.37% | 94.37% | N/A | 47.2s |
+| ToroidalMLP (SN) | 94.51% | 94.51% | N/A | 47.6s |
+| ModernEqProp (SN) | 85.45% | 85.45% | N/A | 59.1s |
+| ConvEqProp (SN) | 19.93% | 19.93% | N/A | 145.9s |
 
 | Model | Final Acc | Best Acc | Params | Time |
 |-------|-----------|----------|--------|------|

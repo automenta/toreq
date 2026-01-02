@@ -1,7 +1,7 @@
 
 <!--
 AUTO-GENERATED PAPER
-Generated: 2026-01-01T19:22:33.752164
+Generated: 2026-01-01T20:00:15.180188
 Source: /home/me/toreq/papers/beta_stability_paper.md
 Data validation: PASSED
 -->

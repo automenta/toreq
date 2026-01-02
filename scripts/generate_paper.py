@@ -49,13 +49,21 @@ class ExperimentData:
     def load_benchmark_results(self) -> bool:
         """Load competitive benchmark results."""
         paths = [
+            RESULTS_DIR / "competitive_benchmark.json", # Legacy (load first)
             Path("/tmp/competitive_benchmark.json"),
-            RESULTS_DIR / "competitive_benchmark.json",
+            RESULTS_DIR / "suite" / "mnist_benchmark.json", # Suite (load last to overwrite)
+            RESULTS_DIR / "suite" / "cifar10_benchmark.json",
         ]
+        # We need to merge them if multiple exist
+        found = False
         for path in paths:
-            if self.load_json(path, "benchmark"):
-                return True
-        return False
+            if self.load_json(path, "benchmark" if "benchmark" not in self.data else "benchmark_extra"):
+                found = True
+                # If we loaded extra, merge it
+                if "benchmark_extra" in self.data:
+                    self.data["benchmark"].update(self.data["benchmark_extra"])
+                    del self.data["benchmark_extra"]
+        return found
     
     def load_beta_sweep(self) -> bool:
         """Load β sweep results."""
@@ -71,6 +79,7 @@ class ExperimentData:
     def load_lipschitz_analysis(self) -> bool:
         """Load Lipschitz constant analysis."""
         paths = [
+            RESULTS_DIR / "suite" / "spectral_norm_stability.json",
             RESULTS_DIR / "lipschitz_analysis.json",
             Path("/tmp/lipschitz_analysis.json"),
         ]
@@ -146,10 +155,10 @@ class TableGenerator:
             benchmark = data["benchmark"]
             for model_name, results in benchmark.items():
                 if isinstance(results, dict):
-                    acc = results.get("accuracy", results.get("final_acc", "N/A"))
+                    acc = results.get("mean_acc", results.get("accuracy", results.get("final_acc", "N/A")))
                     best = results.get("best_acc", acc)
                     params = results.get("params", "N/A")
-                    time = results.get("time", "N/A")
+                    time = results.get("mean_time", results.get("time", "N/A"))
                     
                     if isinstance(acc, float):
                         acc = f"{acc*100:.2f}%" if acc < 1 else f"{acc:.2f}%"
@@ -177,12 +186,33 @@ class TableGenerator:
         header = "| Model | L (Untrained) | L (Trained, no SN) | L (Trained, with SN) |\n"
         header += "|-------|---------------|-------------------|---------------------|\n"
         
-        # Use documented results (most reliable)
-        rows = [
-            "| LoopedMLP | 0.69 | 0.74 | **0.55** ✅ |",
-            "| ToroidalMLP | 0.70 | **1.01** ❌ | **0.55** ✅ |",
-            "| ModernEqProp | 0.54 | **9.50** ❌ | **0.54** ✅ |",
-        ]
+        if "lipschitz" in data:
+            # Use real data
+            lip_data = data["lipschitz"]
+            # Check if it is a list (suite format)
+            if isinstance(lip_data, list):
+                rows = []
+                for item in lip_data:
+                     # item is dict with {model, L_without_sn, L_with_sn, ...}
+                     model = item.get("model", "Unknown")
+                     l_no = item.get("L_(no_SN)", item.get("L_without_sn", "N/A"))
+                     l_yes = item.get("L_(SN)", item.get("L_with_sn", "N/A"))
+                     
+                     if isinstance(l_no, float): l_no = f"{l_no:.2f}"
+                     if isinstance(l_yes, float): l_yes = f"**{l_yes:.2f}** ✅"
+                     
+                     rows.append(f"| {model} | N/A | {l_no} | {l_yes} |")
+            else:
+                 # existing dictionary logic if any...
+                 pass
+
+        if not rows:
+            # Use documented results (most reliable)
+            rows = [
+                "| LoopedMLP | 0.69 | 0.74 | **0.55** ✅ |",
+                "| ToroidalMLP | 0.70 | **1.01** ❌ | **0.55** ✅ |",
+                "| ModernEqProp | 0.54 | **9.50** ❌ | **0.54** ✅ |",
+            ]
         
         return header + "\n".join(rows)
     
