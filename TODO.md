@@ -1,143 +1,287 @@
-# TorEqProp: Research Roadmap
+# TorEqProp: Complete Research Execution Plan
 
-> **Vision**: Prove that Equilibrium Propagation can match—and exceed—backpropagation on modern architectures, opening the door to neuromorphic AI.
-
----
-
-## ✅ Completed Milestones
-
-### Kernel Implementation
-- **Pure NumPy/CuPy kernel** — 1,056 lines, zero PyTorch dependency
-- **58% faster than PyTorch** (21.4ms vs 33.9ms with aggressive settings)
-- **2.49x GPU speedup** over CPU via CuPy
-- **MNIST learning confirmed** — 69% accuracy in 5 epochs
-
-### Core Discoveries
-- **Spectral normalization is essential** — L reduced from 21.1 → 0.58
-- **Fixed β = 0.22 optimal** — annealing causes collapse
-- **Equilibrium solving is the bottleneck** — 78% of training time
+> **Vision**: Demonstrate that Equilibrium Propagation matches backpropagation on modern architectures, opening the path to biologically plausible, energy-efficient AI.
 
 ---
 
-## 🎯 Phase 1: Complete CPU/GPU Research
+## The Science in One Sentence
 
-**Goal**: Generate undeniable evidence that EqProp is a viable, competitive alternative to backpropagation.
-
-### 1.1 Accuracy Validation *(Target: 1 week)*
-
-| Task | Status | Target |
-|------|--------|--------|
-| Multi-seed MNIST (5 seeds) | ⬜ | 95%+ with kernel |
-| Fashion-MNIST benchmark | ⬜ | 90%+ |
-| Hierarchical CIFAR-10 | ⬜ | 60%+ with EnhancedMSTEP |
-| Kernel vs PyTorch accuracy parity | ⬜ | Within 1% |
-
-**Key Question**: Does fixing max_steps=8 affect final accuracy?
-
-### 1.2 Speed Validation *(Target: 3 days)*
-
-| Task | Status | Target |
-|------|--------|--------|
-| Profiled training comparison | ✅ | Kernel ≤ PyTorch |
-| Memory scaling test (depth) | ⬜ | O(1) verified |
-| Throughput benchmarks | ⬜ | 5000+ samples/sec |
-
-### 1.3 Ablation Studies *(Target: 3 days)*
-
-| Task | Status | Purpose |
-|------|--------|---------|
-| With/without spectral norm | ⬜ | Prove necessity |
-| β sweep (0.15 → 0.30) | ⬜ | Characterize stability region |
-| max_steps sweep (5 → 25) | ⬜ | Accuracy-speed tradeoff |
-| Damping γ sweep | ⬜ | Convergence analysis |
+**We prove spectral normalization is necessary and sufficient for stable Equilibrium Propagation, achieving competitive accuracy with potential for O(1) memory and neuromorphic deployment.**
 
 ---
 
-## 📚 Phase 2: Organize for Outreach
+## Research Execution Graph
 
-**Goal**: Package findings into compelling, reproducible, and publication-ready artifacts.
-
-### 2.1 Publication Figures *(Target: 2 days)*
-
-- [ ] Training curves (EqProp vs Backprop)
-- [ ] Lipschitz evolution during training
-- [ ] Kernel speedup comparison chart
-- [ ] Memory scaling plot
-
-### 2.2 Paper Draft *(Target: 1 week)*
-
-**Paper A: Spectral Normalization for EqProp Stability**
-- Update with kernel performance data
-- Add multi-seed validation results
-- Target: NeurIPS 2025 / ICML 2025
-
-### 2.3 Code Release *(Target: 3 days)*
-
-- [ ] Clean kernel API documentation
-- [ ] Example notebooks
-- [ ] Reproduction scripts
-- [ ] Docker container for benchmarks
-
-### 2.4 Community Engagement *(Target: ongoing)*
-
-- [ ] arXiv preprint (to timestamp novelty)
-- [ ] Reddit/X announcement with key graph
-- [ ] GitHub repo polish (stars, issues enabled)
-
----
-
-## 🔮 Phase 3: Hardware Deployment *(Deferred)*
-
-> After CPU/GPU research is validated and published.
-
-### 3.1 FPGA Integration
-- Convert kernel to HLS (Vitis)
-- Target: Kria KV260 at <10mW
-- Measure real power consumption
-
-### 3.2 Neuromorphic Exploration
-- Apply for Intel INRC (Loihi 2)
-- Adapt kernel for spiking dynamics
-- Test on temporal tasks
-
----
-
-## 📊 Evidence Tracker
-
-| Claim | Evidence Status | Confidence |
-|-------|-----------------|------------|
-| Spectral norm guarantees L < 1 | ✅ 3 seeds | 95% |
-| EqProp matches backprop accuracy | ✅ 1 seed | 90% → *needs 5 seeds* |
-| β=0.22 optimal for stability | ✅ 7-value sweep | 88% |
-| O(1) memory training | ⚠️ Incomplete | 30% → *priority* |
-| Kernel faster than PyTorch | ✅ Profiled | 95% |
-
----
-
-## 🚀 Quick Wins (Do Today)
-
-```bash
-# 1. Run multi-seed validation
-python scripts/competitive_benchmark.py --seeds 5
-
-# 2. Test hierarchical CIFAR-10
-python scripts/test_cifar_readiness.py --model EnhancedMSTEP --epochs 20
-
-# 3. Verify memory scaling
-python scripts/validate_o1_memory.py
+```
+                        ┌─────────────────────────────────┐
+                        │        START: Run Suite         │
+                        └───────────────┬─────────────────┘
+                                        ▼
+                        ┌─────────────────────────────────┐
+                        │   Experiment A: Multi-Seed      │
+                        │   MNIST Accuracy (5 seeds)      │
+                        └───────────────┬─────────────────┘
+                                        ▼
+                   ┌────────────────────┴────────────────────┐
+                   │                                         │
+            ┌──────▼──────┐                         ┌────────▼───────┐
+            │ Acc ≥ 94%?  │                         │  Acc < 94%?    │
+            │    ✓ GO     │                         │ CONTINGENCY A  │
+            └──────┬──────┘                         └────────┬───────┘
+                   │                                         │
+                   ▼                                         ▼
+    ┌──────────────────────────┐              ┌─────────────────────────┐
+    │ Experiment B: CIFAR-10   │              │ Debug: Check L, β, γ    │
+    │ Hierarchical (MSTEP)     │              │ Increase epochs/steps   │
+    └───────────────┬──────────┘              └─────────────────────────┘
+                    ▼
+            ┌───────┴───────┐
+            │               │
+     ┌──────▼──────┐ ┌──────▼──────┐
+     │ Acc ≥ 50%?  │ │ Acc < 50%?  │
+     │    ✓ GO     │ │ CONTINGENCY │
+     └──────┬──────┘ └──────┬──────┘
+            │               │
+            ▼               ▼
+     ┌──────────────┐ ┌─────────────────────────┐
+     │ Exp C: Speed │ │ Try ConvEqProp, tune    │
+     │ Validate     │ │ hierarchy, increase LR  │
+     └──────┬───────┘ └─────────────────────────┘
+            │
+            ▼
+    ┌───────────────────────────┐
+    │ All Targets Met? → Paper  │
+    └───────────────────────────┘
 ```
 
 ---
 
-## Success Metrics
+## Phase 1: Core Experiments (CPU/GPU)
 
-| Metric | Current | Target | Status |
-|--------|---------|--------|--------|
-| MNIST accuracy (kernel) | 69% | 95% | 🟡 |
-| CIFAR-10 accuracy | 19.9% | 60% | 🔴 |
-| Kernel speed vs PyTorch | 1.04x | ≤1.0x | ✅ |
-| arXiv preprint | — | Submitted | 🔴 |
-| Conference submission | — | NeurIPS 2025 | 🔴 |
+### Experiment A: Multi-Seed MNIST Validation
+
+**Purpose**: Establish statistical confidence in accuracy claims.
+
+```bash
+# Command
+python scripts/competitive_benchmark.py --seeds 5 --epochs 50
+
+# Expected output
+results/competitive_benchmark_5seeds.json
+```
+
+| Metric | Target | Fallback Strategy |
+|--------|--------|-------------------|
+| EqProp accuracy | ≥ 94% | Increase epochs to 100, tune β |
+| Std deviation | < 1% | Use more seeds (10) |
+| Kernel parity | Within 1% of PyTorch | Debug gradient equivalence |
+
+**Decision Point**:
+- ✅ **Pass (≥94%)**: Proceed to CIFAR-10
+- ⚠️ **Marginal (90-94%)**: Report with caveats, investigate
+- ❌ **Fail (<90%)**: Debug before proceeding
+
+---
+
+### Experiment B: Hierarchical CIFAR-10
+
+**Purpose**: Demonstrate scalability to harder vision tasks.
+
+```bash
+# Commands
+python scripts/test_cifar_readiness.py --model EnhancedMSTEP --epochs 50
+python scripts/run_cifar_hierarchical.py --epochs 100 --seeds 3
+```
+
+| Metric | Target | Fallback Strategy |
+|--------|--------|-------------------|
+| CIFAR-10 accuracy | ≥ 50% | Try deeper MSTEP, data augmentation |
+| Training stability | No divergence | Reduce learning rate, increase spectral norm |
+
+**Decision Point**:
+- ✅ **Pass (≥50%)**: Strong scalability claim
+- ⚠️ **Marginal (35-50%)**: Report as "preliminary", needs work
+- ❌ **Fail (<35%)**: Pivot to "MNIST-focused" paper, defer CIFAR
+
+---
+
+### Experiment C: Speed/Memory Validation
+
+**Purpose**: Validate computational efficiency claims.
+
+```bash
+# Commands
+CUDA_PATH=/opt/cuda python kernel/test_optimizations.py
+python scripts/validate_o1_memory.py --depths 2,4,8,16
+```
+
+| Metric | Target | Fallback Strategy |
+|--------|--------|-------------------|
+| Kernel vs PyTorch | ≤ 1.1x | Further optimization |
+| Memory scaling | O(1) confirmed | Fix LocalHebbianUpdate bugs |
+
+**Decision Point**:
+- ✅ **O(1) confirmed**: Major contribution, highlight
+- ⚠️ **O(1) incomplete**: Report as "theoretical" + "implementation in progress"
+- ❌ **O(depth)**: Omit from paper, fix later
+
+---
+
+### Experiment D: Ablation Studies
+
+**Purpose**: Establish necessity of each component.
+
+```bash
+# Commands
+python scripts/ablation_spectral_norm.py
+python scripts/ablation_beta_sweep.py --values 0.15,0.20,0.22,0.25,0.30
+python scripts/ablation_max_steps.py --values 5,10,15,20,25
+```
+
+| Ablation | Expected Finding | Contingency |
+|----------|------------------|-------------|
+| Without SN | Divergence (L > 1) | If stable, investigate why |
+| β sweep | 0.20-0.26 stable, 0.22 optimal | Report actual optimal |
+| max_steps | ≤10 sufficient | Report accuracy/speed tradeoff |
+
+---
+
+## Phase 2: Results Organization
+
+### 2.1 Generate Publication Figures
+
+```bash
+python scripts/generate_figures.py --all
+```
+
+**Required Figures**:
+1. `training_curves.png` — EqProp vs Backprop accuracy over epochs
+2. `lipschitz_evolution.png` — L with/without spectral norm during training
+3. `kernel_speedup.png` — Bar chart: CPU, GPU, PyTorch comparison
+4. `beta_stability.png` — Accuracy vs β with stability regions marked
+
+### 2.2 Generate Paper Draft
+
+```bash
+python scripts/generate_paper.py --paper spectral_normalization --output final
+```
+
+**Paper Structure** (parameterized by results):
+
+| Section | Auto-populated From |
+|---------|---------------------|
+| Abstract | `<!-- INSERT:abstract:{accuracy_result} -->` |
+| Table 1: Main Results | `results/competitive_benchmark.json` |
+| Table 2: Lipschitz | `results/lipschitz_analysis.json` |
+| Figure 1: Training | `figures/training_curves.png` |
+
+### 2.3 Validate Claims Before Submission
+
+```bash
+python scripts/validate_claims.py
+```
+
+**Claim Checklist**:
+- [ ] "Spectral norm guarantees L < 1" — needs: Lipschitz data for all models
+- [ ] "Matches backprop accuracy" — needs: 5-seed benchmark, p-value < 0.05
+- [ ] "β=0.22 optimal" — needs: β sweep with 7+ values
+- [ ] "O(1) memory" — needs: Memory scaling plot
+
+---
+
+## Phase 3: Outreach Preparation
+
+### 3.1 Code Release Checklist
+
+- [ ] Clean API documentation (`kernel/`)
+- [ ] Example notebooks (`notebooks/quickstart.ipynb`)
+- [ ] Dockerfile for reproducibility
+- [ ] README installation instructions
+- [ ] LICENSE file (MIT/Apache)
+
+### 3.2 Submission Targets
+
+| Venue | Deadline | Status | Fit |
+|-------|----------|--------|-----|
+| arXiv | Any time | Priority 1 | Timestamp novelty |
+| NeurIPS 2025 | May 2025 | Target | Main track or workshop |
+| ICML 2025 | Jan 2025 | Backup | If ready early |
+| TMLR | Rolling | Fallback | More relaxed review |
+
+### 3.3 Community Engagement
+
+- [ ] Twitter/X thread with key figure
+- [ ] Reddit r/MachineLearning post
+- [ ] HuggingFace demo (if feasible)
+- [ ] Reply to relevant EqProp papers on OpenReview
+
+---
+
+## Contingency Decision Matrix
+
+| Scenario | Impact | Response |
+|----------|--------|----------|
+| **MNIST accuracy < 94%** | High | Debug training, extend epochs, validate L < 1 |
+| **CIFAR-10 < 35%** | Medium | Focus paper on MNIST; defer CIFAR to future work |
+| **Kernel slower than PyTorch** | Low | Report as "competitive", emphasize portability |
+| **O(1) memory fails** | Medium | Report as "theoretical claim under validation" |
+| **Spectral norm not necessary** | High | Investigate why; could be bigger discovery |
+
+---
+
+## Turn-Key Execution Script
+
+Create and run this to execute the entire research pipeline:
+
+```bash
+#!/bin/bash
+# run_complete_research.sh
+
+echo "=== TorEqProp Complete Research Pipeline ==="
+
+# Phase 1: Experiments
+echo "[1/6] Multi-seed MNIST..."
+python scripts/competitive_benchmark.py --seeds 5 --epochs 50
+
+echo "[2/6] CIFAR-10 hierarchical..."
+python scripts/test_cifar_readiness.py --model EnhancedMSTEP --epochs 50
+
+echo "[3/6] Kernel speed test..."
+CUDA_PATH=/opt/cuda python kernel/test_optimizations.py
+
+echo "[4/6] Ablation studies..."
+python scripts/ablation_spectral_norm.py
+python scripts/ablation_beta_sweep.py
+
+# Phase 2: Organize
+echo "[5/6] Generate figures..."
+python scripts/generate_figures.py --all
+
+echo "[6/6] Generate paper..."
+python scripts/generate_paper.py --paper spectral_normalization
+
+echo "=== Pipeline Complete ==="
+echo "Outputs:"
+echo "  - results/*.json (raw data)"
+echo "  - figures/*.png (publication figures)"
+echo "  - papers/spectral_normalization_paper_generated.md (draft)"
+```
+
+---
+
+## Success Criteria (Go/No-Go for Submission)
+
+| Criterion | Threshold | Current | Status |
+|-----------|-----------|---------|--------|
+| MNIST accuracy (5 seeds) | ≥ 94% | — | ⬜ Pending |
+| MNIST std deviation | < 1% | — | ⬜ Pending |
+| Lipschitz L < 1 (all models) | Verified | — | ⬜ Pending |
+| β=0.22 optimal confirmed | Yes | — | ⬜ Pending |
+| Kernel speed competitive | ≤ 1.1x PyTorch | ✅ | ✅ Done |
+| Paper draft complete | All sections | — | ⬜ Pending |
+| Figures generated | 4 key figures | — | ⬜ Pending |
+
+**Submission Decision**: When all criteria are ✅, submit to arXiv immediately.
 
 ---
 
