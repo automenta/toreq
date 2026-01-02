@@ -7,6 +7,9 @@ sys.path.insert(0, '.')
 import torch
 import torch.optim as optim
 
+import argparse
+import numpy as np
+
 from src.models import LoopedMLP, ToroidalMLP, ModernEqProp
 from src.training import EqPropTrainer
 from src.analysis import XORTask
@@ -74,8 +77,12 @@ def measure_lipschitz(model, x, n_samples=30):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--seeds', type=int, default=1, help='Number of seeds')
+    args = parser.parse_args()
+
     print("=" * 70)
-    print("SPECTRAL NORM: UNIVERSAL BENEFIT TEST")
+    print(f"SPECTRAL NORM: UNIVERSAL BENEFIT TEST ({args.seeds} seeds)")
     print("=" * 70)
     
     task = XORTask(n_bits=4)
@@ -90,28 +97,44 @@ def main():
         print(f"\n## {name}")
         print("-" * 50)
         
-        # Without SN
-        model_no = ModelClass(task.input_dim, 64, task.output_dim, 
-                              use_spectral_norm=False, **kwargs_base)
-        L_no, acc_no = quick_train(model_no, task)
+        l_no_list, acc_no_list = [], []
+        l_yes_list, acc_yes_list = [], []
         
-        # With SN
-        model_yes = ModelClass(task.input_dim, 64, task.output_dim, 
-                               use_spectral_norm=True, **kwargs_base)
-        L_yes, acc_yes = quick_train(model_yes, task)
+        for seed in range(42, 42 + args.seeds):
+            # Without SN
+            torch.manual_seed(seed)
+            model_no = ModelClass(task.input_dim, 64, task.output_dim, 
+                                  use_spectral_norm=False, **kwargs_base)
+            L_no, acc_no = quick_train(model_no, task)
+            l_no_list.append(L_no)
+            acc_no_list.append(acc_no)
+            
+            # With SN
+            torch.manual_seed(seed)
+            model_yes = ModelClass(task.input_dim, 64, task.output_dim, 
+                                   use_spectral_norm=True, **kwargs_base)
+            L_yes, acc_yes = quick_train(model_yes, task)
+            l_yes_list.append(L_yes)
+            acc_yes_list.append(acc_yes)
         
-        print(f"  Without SN: L={L_no:.3f}, Acc={acc_no:.1%}")
-        print(f"  With SN:    L={L_yes:.3f}, Acc={acc_yes:.1%}")
-        print(f"  L reduced:  {L_no - L_yes:.3f}")
-        print(f"  Contraction: {'✓' if L_yes < 1 else '✗'}")
+        # Average
+        avg_L_no = np.mean(l_no_list)
+        avg_acc_no = np.mean(acc_no_list)
+        avg_L_yes = np.mean(l_yes_list)
+        avg_acc_yes = np.mean(acc_yes_list)
+        
+        print(f"  Without SN: L={avg_L_no:.3f}, Acc={avg_acc_no:.1%}")
+        print(f"  With SN:    L={avg_L_yes:.3f}, Acc={avg_acc_yes:.1%}")
+        print(f"  L reduced:  {avg_L_no - avg_L_yes:.3f}")
+        print(f"  Contraction: {'✓' if avg_L_yes < 1 else '✗'}")
         
         results.append({
             "model": name,
-            "L_without_sn": L_no,
-            "L_with_sn": L_yes,
-            "acc_without_sn": acc_no,
-            "acc_with_sn": acc_yes,
-            "contraction_maintained": L_yes < 1
+            "L_without_sn": avg_L_no,
+            "L_with_sn": avg_L_yes,
+            "acc_without_sn": avg_acc_no,
+            "acc_with_sn": avg_acc_yes,
+            "contraction_maintained": avg_L_yes < 1
         })
     
     print("\n" + "=" * 70)
@@ -132,6 +155,23 @@ def main():
         print("⚠ Some models still break contraction - investigate further")
     print("=" * 70)
 
+    # Save results
+    import json
+    
+    # Convert numpy types to python types
+    clean_results = []
+    for r in results:
+        clean_r = {}
+        for k, v in r.items():
+            if hasattr(v, 'item'):
+                clean_r[k] = v.item()
+            else:
+                clean_r[k] = v
+        clean_results.append(clean_r)
+
+    with open('/tmp/lipschitz_analysis.json', 'w') as f:
+        json.dump(clean_results, f, indent=2)
+    print("Results saved to /tmp/lipschitz_analysis.json")
 
 if __name__ == "__main__":
     main()

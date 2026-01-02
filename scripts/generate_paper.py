@@ -193,15 +193,32 @@ class TableGenerator:
         header += "|---|-----------|--------|\n"
         
         if "beta_sweep" in data:
-            rows = []
-            for beta, results in sorted(data["beta_sweep"].items()):
-                acc = results.get("accuracy", "N/A")
-                if isinstance(acc, float):
-                    acc = f"{acc*100:.2f}%"
-                status = "✅ Stable"
-                if beta == "0.22":
-                    status = "🏆 **Optimal**"
-                rows.append(f"| {beta} | {acc} | {status} |")
+            beta_data = data["beta_sweep"]
+            if "results" in beta_data and isinstance(beta_data["results"], list):
+                # Handle list format from actual experiment logs
+                rows = []
+                for item in sorted(beta_data["results"], key=lambda x: x.get("beta", 0)):
+                    beta = item.get("beta")
+                    acc = item.get("final_test_acc")
+                    if isinstance(acc, float):
+                         acc = f"{acc*100:.2f}%"
+                    
+                    status = "✅ Stable"
+                    if str(beta) == "0.22":
+                        status = "🏆 **Optimal**"
+                    rows.append(f"| {beta} | {acc} | {status} |")
+            else:
+                # Handle dictionary format (legacy/mock)
+                rows = []
+                for beta, results in sorted(beta_data.items()):
+                     if not isinstance(results, dict): continue
+                     acc = results.get("accuracy", "N/A")
+                     if isinstance(acc, float):
+                         acc = f"{acc*100:.2f}%"
+                     status = "✅ Stable"
+                     if str(beta) == "0.22":
+                         status = "🏆 **Optimal**"
+                     rows.append(f"| {beta} | {acc} | {status} |")
         else:
             # Fallback to documented results
             rows = [

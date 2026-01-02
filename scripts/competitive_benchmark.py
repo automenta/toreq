@@ -15,6 +15,8 @@ import torch
 import torch.optim as optim
 import time
 import json
+import argparse
+import numpy as np
 
 from src.models import LoopedMLP, ToroidalMLP, ModernEqProp, BackpropMLP
 from src.training import EqPropTrainer
@@ -116,12 +118,18 @@ def train_backprop(model, train_loader, test_loader, epochs=50, lr=0.001):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--seeds', type=int, default=1, help='Number of random seeds')
+    parser.add_argument('--epochs', type=int, default=50, help='Number of epochs')
+    parser.add_argument('--dataset', type=str, default='digits', help='Dataset name')
+    args = parser.parse_args()
+
     print("=" * 70)
-    print("COMPETITIVE BENCHMARK: EqProp vs Backprop")
+    print(f"COMPETITIVE BENCHMARK: EqProp vs Backprop ({args.seeds} seeds)")
     print("=" * 70)
     
     # Configuration
-    epochs = 50
+    epochs = args.epochs
     hidden_dim = 256
     lr = 0.001
     beta = 0.22  # Optimal from analysis
@@ -129,7 +137,7 @@ def main():
     
     # Load data
     train_loader, test_loader, input_dim, output_dim = get_task_loader(
-        'digits', batch_size=64, dataset_size=10000
+        args.dataset, batch_size=64, dataset_size=10000
     )
     
     results = {}
@@ -149,53 +157,83 @@ def main():
         print(f"\n## {name}")
         print("-" * 50)
         
-        model = model_fn().cuda()
-        param_count = sum(p.numel() for p in model.parameters())
-        print(f"  Parameters: {param_count:,}")
+        seed_accuracies = []
+        seed_times = []
+        all_histories = []
         
-        if "Backprop" in name:
-            history, elapsed = train_backprop(model, train_loader, test_loader, 
-                                             epochs=epochs, lr=lr)
-        else:
-            history, elapsed = train_eqprop(model, train_loader, test_loader, 
-                                           epochs=epochs, lr=lr, beta=beta, max_steps=max_steps)
-        
-        final_acc = history['test_acc'][-1]
-        best_acc = max(history['test_acc'])
+        for seed in range(42, 42 + args.seeds):
+            print(f"  Seed {seed}...")
+            torch.manual_seed(seed)
+            np.random.seed(seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed(seed)
+            
+            model = model_fn().cuda()
+            
+            if "Backprop" in name:
+                history, elapsed = train_backprop(model, train_loader, test_loader, 
+                                                 epochs=epochs, lr=lr)
+            else:
+                history, elapsed = train_eqprop(model, train_loader, test_loader, 
+                                               epochs=epochs, lr=lr, beta=beta, max_steps=max_steps)
+            
+            final_acc = history['test_acc'][-1]
+            seed_accuracies.append(final_acc)
+            seed_times.append(elapsed)
+            all_histories.append(history)
+            
+            print(f"    Acc: {final_acc:.2f}%, Time: {elapsed:.1f}s")
+
+        # Aggregate stats
+        mean_acc = np.mean(seed_accuracies)
+        std_acc = np.std(seed_accuracies)
+        mean_time = np.mean(seed_times)
         
         results[name] = {
-            'params': param_count,
-            'final_acc': final_acc,
-            'best_acc': best_acc,
-            'time': elapsed,
-            'history': history
+            'mean_acc': mean_acc,
+            'std_acc': std_acc,
+            'mean_time': mean_time,
+            'seeds': seed_accuracies,
+            'histories': all_histories
         }
         
-        print(f"  Final Accuracy: {final_acc:.2f}%")
-        print(f"  Best Accuracy:  {best_acc:.2f}%")
-        print(f"  Training Time:  {elapsed:.1f}s")
+        print(f"  Result: {mean_acc:.2f} ± {std_acc:.2f}% (Mean Time: {mean_time:.1f}s)")
     
     # Summary
     print("\n" + "=" * 70)
     print("SUMMARY")
     print("=" * 70)
-    print(f"{'Model':<20} | {'Params':>10} | {'Final Acc':>10} | {'Best Acc':>10} | {'Time':>8}")
+    print(f"{'Model':<20} | {'Mean Acc':>15} | {'Mean Time':>10}")
     print("-" * 70)
     for name, r in results.items():
-        print(f"{name:<20} | {r['params']:>10,} | {r['final_acc']:>10.2f}% | "
-              f"{r['best_acc']:>10.2f}% | {r['time']:>8.1f}s")
+        print(f"{name:<20} | {r['mean_acc']:>6.2f} ± {r['std_acc']:<5.2f}% | {r['mean_time']:>8.1f}s")
     
     # Save results
-    with open('/tmp/competitive_benchmark.json', 'w') as f:
+    output_file = f'/tmp/competitive_benchmark_{args.seeds}seed.json'
+    
+    # helper for serialization
+    def make_serializable(obj):
+        if hasattr(obj, 'item'): return obj.item()
+        if hasattr(obj, '__iter__') and not isinstance(obj, str): return [make_serializable(x) for x in obj]
+        if isinstance(obj, dict): return {k: make_serializable(v) for k, v in obj.items()}
+        return obj
+
+    with open(output_file, 'w') as f:
         # Convert history lists to serializable format
-        save_results = {k: {**v, 'history': {hk: [float(x) for x in hv] 
-                            for hk, hv in v['history'].items()}} 
-                       for k, v in results.items()}
+        # Complex nesting: list of dicts of lists
+        save_results = {}
+        for k, v in results.items():
+             save_results[k] = {
+                 'mean_acc': float(v['mean_acc']),
+                 'std_acc': float(v['std_acc']),
+                 'mean_time': float(v['mean_time']),
+                 'seeds': list(v['seeds']),
+                 'histories': make_serializable(v['histories'])
+             }
         json.dump(save_results, f, indent=2)
     
-    print(f"\nResults saved to /tmp/competitive_benchmark.json")
+    print(f"\nResults saved to {output_file}")
     print("=" * 70)
-
 
 if __name__ == "__main__":
     if not torch.cuda.is_available():
