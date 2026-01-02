@@ -1,7 +1,7 @@
 
 <!--
 AUTO-GENERATED PAPER
-Generated: 2026-01-02T13:22:47.098659
+Generated: 2026-01-02T15:37:04.502056
 Source: /home/me/toreq/papers/spectral_normalization_paper.md
 Data validation: PASSED
 -->
