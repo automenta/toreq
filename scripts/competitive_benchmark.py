@@ -19,6 +19,7 @@ import argparse
 import numpy as np
 
 from src.models import LoopedMLP, ToroidalMLP, ModernEqProp, BackpropMLP
+from src.models.conv_eqprop import ConvEqProp
 from src.training import EqPropTrainer
 from src.tasks import get_task_loader
 
@@ -143,15 +144,22 @@ def main():
     results = {}
     
     # Test models
-    configs = [
-        ("BackpropMLP", lambda: BackpropMLP(input_dim, hidden_dim, output_dim, depth=2)),
-        ("LoopedMLP (SN)", lambda: LoopedMLP(input_dim, hidden_dim, output_dim, 
-                                              symmetric=True, use_spectral_norm=True)),
-        ("ToroidalMLP (SN)", lambda: ToroidalMLP(input_dim, hidden_dim, output_dim, 
-                                                  use_spectral_norm=True)),
-        ("ModernEqProp (SN)", lambda: ModernEqProp(input_dim, hidden_dim, output_dim,
-                                                    use_spectral_norm=True)),
-    ]
+    # Test models
+    if args.dataset == 'cifar10':
+        print(">> Mode: CIFAR-10 (Using ConvEqProp)")
+        configs = [
+             ("ConvEqProp (SN)", lambda: ConvEqProp(input_channels=3, hidden_channels=64, output_dim=10, use_spectral_norm=True)),
+        ]
+    else:
+        configs = [
+            ("BackpropMLP", lambda: BackpropMLP(input_dim, hidden_dim, output_dim, depth=2)),
+            ("LoopedMLP (SN)", lambda: LoopedMLP(input_dim, hidden_dim, output_dim, 
+                                                  symmetric=True, use_spectral_norm=True)),
+            ("ToroidalMLP (SN)", lambda: ToroidalMLP(input_dim, hidden_dim, output_dim, 
+                                                      use_spectral_norm=True)),
+            ("ModernEqProp (SN)", lambda: ModernEqProp(input_dim, hidden_dim, output_dim,
+                                                        use_spectral_norm=True)),
+        ]
     
     for name, model_fn in configs:
         print(f"\n## {name}")

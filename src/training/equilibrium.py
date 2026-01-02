@@ -31,7 +31,10 @@ class EquilibriumSolver:
         batch_size = x.size(0)
         
         if h_init is None:
-            h = torch.zeros(batch_size, model.hidden_dim, device=x.device)
+            if hasattr(model, 'init_state'):
+                h = model.init_state(x)
+            else:
+                h = torch.zeros(batch_size, model.hidden_dim, device=x.device)
         else:
             h = h_init.clone()
 

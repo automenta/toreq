@@ -19,8 +19,30 @@ def get_task_loader(task_name, batch_size=64, dataset_size=1000):
         return get_acrobot_bc(batch_size, dataset_size)
     elif task_name == "tiny-lm":
         return get_tiny_lm(batch_size, dataset_size)
+    elif task_name == "cifar10":
+        return get_cifar10(batch_size, dataset_size)
     else:
         raise ValueError(f"Unknown task: {task_name}")
+
+def get_cifar10(batch_size, dataset_size):
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+    ])
+    
+    train_data = datasets.CIFAR10('./data', train=True, download=True, transform=transform)
+    test_data = datasets.CIFAR10('./data', train=False, download=True, transform=transform)
+    
+    if dataset_size < 50000:
+        indices = torch.randperm(len(train_data))[:dataset_size]
+        train_data = Subset(train_data, indices)
+        
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=2)
+    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False, num_workers=2)
+    
+    # Return 3 channels (not flattened)
+    return train_loader, test_loader, 3, 10
+
 
 def get_mnist(batch_size, dataset_size):
     transform = transforms.Compose([

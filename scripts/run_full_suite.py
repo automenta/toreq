@@ -19,8 +19,28 @@ os.makedirs(RESULTS_DIR, exist_ok=True)
 CONFIG = [
     {"dataset": "mnist", "seeds": 3, "epochs": 5},
     # {"dataset": "fashion-mnist", "seeds": 3, "epochs": 5},
-    # {"dataset": "cifar10", "seeds": 1, "epochs": 5}, # Expensive, enable if needed
+    {"dataset": "cifar10", "seeds": 1, "epochs": 5}, # Now enabled and verified!
 ]
+
+def run_stability_test():
+    print("\n>>> Running Suite: STABILITY (Spectral Norm Verification)")
+    cmd = ["python", "scripts/test_spectral_norm_all.py", "--seeds", "3"]
+    try:
+        subprocess.run(cmd, check=True)
+        # Copy result
+        src = "/tmp/lipschitz_analysis.json"
+        dst = f"{RESULTS_DIR}/spectral_norm_stability.json"
+        
+        if os.path.exists(src):
+            subprocess.run(["cp", src, dst], check=True)
+            print(f"✅ Saved stability results to {dst}")
+            return True
+        else:
+            print(f"❌ Stability result file missing: {src}")
+            return False
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Stability Test failed: {e}")
+        return False
 
 def run_experiment(dataset, seeds, epochs):
     print(f"\n>>> Running Suite: {dataset.upper()} ({seeds} seeds, {epochs} epochs)")
@@ -62,6 +82,13 @@ def main():
     
     summary = {}
     
+    # 1. Stability Tests (The Foundation)
+    print("\n[Phase 1] Stability Verification")
+    success_stab = run_stability_test()
+    summary["stability"] = "Success" if success_stab else "Failed"
+
+    # 2. Performance Benchmarks (The Proof)
+    print("\n[Phase 2] Performance Benchmarks")
     for conf in CONFIG:
         key = f"{conf['dataset']}"
         success = run_experiment(conf['dataset'], conf['seeds'], conf['epochs'])
