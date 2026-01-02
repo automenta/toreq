@@ -48,21 +48,21 @@ class BenchmarkConfig:
     epochs: int
     batch_size: int
     dataset_size: Optional[int]  # None = full dataset
+    max_steps: int = 20
     lr: float = 0.001
     beta: float = 0.22
-    max_steps: int = 25
 
 
-# Define benchmark configurations - optimized for speed
+# Define benchmark configurations - optimized for speed and accuracy (updated with hyperparameter sweep results)
 VISION_BENCHMARKS = [
-    BenchmarkConfig("Digits (8x8)", "digits", 64, 10, 128, 30, 64, None),
-    BenchmarkConfig("MNIST", "mnist", 784, 10, 256, 20, 128, 5000),
-    BenchmarkConfig("Fashion-MNIST", "fashion-mnist", 784, 10, 256, 20, 128, 5000),
+    BenchmarkConfig("Digits (8x8)", "digits", 64, 10, 128, 30, 64, None, max_steps=30, lr=0.001, beta=0.22),
+    BenchmarkConfig("MNIST", "mnist", 784, 10, 256, 20, 128, 5000, max_steps=30, lr=0.002, beta=0.22),
+    BenchmarkConfig("Fashion-MNIST", "fashion-mnist", 784, 10, 256, 20, 128, 5000, max_steps=30, lr=0.002, beta=0.5),
 ]
 
 RL_BENCHMARKS = [
-    BenchmarkConfig("CartPole-BC", "cartpole", 4, 2, 64, 30, 64, 5000),
-    BenchmarkConfig("Acrobot-BC", "acrobot", 6, 3, 64, 30, 64, 5000),
+    BenchmarkConfig("CartPole-BC", "cartpole", 4, 2, 64, 30, 64, 5000, max_steps=30, lr=0.001, beta=0.22),
+    BenchmarkConfig("Acrobot-BC", "acrobot", 6, 3, 64, 30, 64, 5000, max_steps=30, lr=0.002, beta=0.5),
 ]
 
 
