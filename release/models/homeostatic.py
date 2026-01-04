@@ -108,36 +108,78 @@ class HomeostaticEqProp(nn.Module):
         return new_states, velocities
 
     def apply_homeostasis(self, velocities: Dict[int, float]) -> HomeostasisMetrics:
-        """Apply homeostatic regulation based on velocity."""
+        """
+        Apply homeostatic regulation using Proportional Control (P-controller).
+        
+        Instead of bang-bang thresholds, we scale weights continuously based on
+        how far the velocity/Lipschitz estimates are from targets.
+        """
         brake_total = 0.0
         boost_total = 0.0
         layers_braked = 0
         layers_boosted = 0
         
         for i, velocity in velocities.items():
-            if velocity > self.velocity_threshold_high:
-                # Brake
-                factor = 1.0 - self.adaptation_rate
+            # Estimate current stability (L) proxy from velocity
+            # High velocity -> High L -> Unstable
+            
+            # P-Controller Logic:
+            # error = velocity - target
+            # scale_change = -k * error
+            
+            # If velocity is high (chaos), we shrink.
+            # If velocity is low (vanishing), we grow.
+            
+            # We use a non-linear mapping to be safe:
+            current_L = self._estimate_layer_lipschitz(i)
+            
+            # Braking condition: High velocity OR High Lipschitz
+            if velocity > self.velocity_threshold_high or current_L > (self.target_lipschitz + 0.1):
+                # Braking (Shrink)
+                error_v = max(0, velocity - self.velocity_threshold_high)
+                error_l = max(0, current_L - self.target_lipschitz)
+                
+                # Combined error signal
+                error = error_v + error_l
+                
+                # Stronger response for larger errors
+                factor = 1.0 - (self.adaptation_rate * (1.0 + 10.0 * error))
+                factor = max(0.5, factor) # Safety clamp
+                
                 self.layer_scales[i] *= factor
                 brake_total += (1.0 - factor)
                 layers_braked += 1
+                
             elif velocity < self.velocity_threshold_low:
-                # Boost, but respect L limit
+                # Boosting (Expand) - but check Lipschitz guardrail
                 current_L = self._estimate_layer_lipschitz(i)
                 if current_L < self.target_lipschitz:
-                    factor = 1.0 + self.adaptation_rate
+                    error = self.velocity_threshold_low - velocity
+                    factor = 1.0 + (self.adaptation_rate * (1.0 + 5.0 * error))
+                    factor = min(1.5, factor) # Safety clamp
+                    
                     self.layer_scales[i] *= factor
                     boost_total += (factor - 1.0)
                     layers_boosted += 1
-                    
-        self.layer_scales.clamp_(0.1, 2.0)
         
-        avg_v = sum(velocities.values()) / len(velocities) if velocities else 0.0
-        avg_L = sum(self._estimate_layer_lipschitz(i) for i in range(self.num_layers)) / self.num_layers
+        # Hard limits on scaling to prevent total collapse or explosion
+        self.layer_scales.clamp_(0.1, 3.0)
         
-        metrics = HomeostasisMetrics(avg_v, avg_L, brake_total, boost_total, layers_braked, layers_boosted)
+        avg_velocity = sum(velocities.values()) / len(velocities) if velocities else 0.0
+        avg_lipschitz = sum(self._estimate_layer_lipschitz(i) for i in range(self.num_layers)) / self.num_layers
+        
+        metrics = HomeostasisMetrics(
+            avg_velocity=avg_velocity,
+            lipschitz_estimate=avg_lipschitz,
+            brake_applied=brake_total,
+            boost_applied=boost_total,
+            layers_braked=layers_braked,
+            layers_boosted=layers_boosted
+        )
+        
         self.homeostasis_history.append(metrics)
         self.last_velocities = velocities
+        
         return metrics
 
     def forward(self, x: torch.Tensor, steps: int = 30, 

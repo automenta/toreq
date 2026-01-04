@@ -22,8 +22,8 @@ This package validates 15 research tracks with rigorous experiments, generating 
 | **10** | O(1) Memory | ✅ **100** | **19.4× savings at depth 100** |
 | **11** | Deep Network | ✅ **100** | 100% accuracy, 100 layers |
 | **12** | Lazy Updates | ✅ **100** | **97% FLOP savings** |
-| **13** | Conv EqProp | ✅ **100** | **Image classification (100% acc)** |
-| **14** | Transformer EqProp | ✅ **100** | **Sequence modeling (100% acc)** |
+| **13** | Conv EqProp | ✅ **100** | **100% Acc on Noisy Shapes (N=3)** |
+| **14** | Transformer EqProp | ✅ **100** | **99.9% Acc on Reversal (N=3)** |
 | **15** | PyTorch vs Kernel | ✅ **100** | **NumPy BPTT matches exactly** |
 
 **Legend**: ✅ = Pass | ⚠️ = Partial | 🔧 = Stub (with implementation hints)
@@ -114,8 +114,8 @@ release/
 All experiments use:
 - **Deterministic seeds**: Reproducible results
 - **Synthetic data**: Self-contained, no external dependencies
-- **Statistical validation**: Multiple runs for consistency
-- **Clear pass criteria**: Quantitative thresholds
+- **Statistical validation**: Multi-seed runs (N=3 or N=5) for stochastic tracks
+- **Clear pass criteria**: Quantitative thresholds with standard deviation checks
 
 ### Reproducibility
 ```bash

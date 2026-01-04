@@ -1,32 +1,31 @@
 # TorEqProp Verification Results
 
-**Generated**: 2026-01-04 18:09:02
+**Generated**: 2026-01-04 18:25:37
 
 
 ## Executive Summary
 
-**Verification completed in 8.4 seconds.**
+**Verification completed in 201.6 seconds.**
 
 ### Overall Results
 
 | Metric | Value |
 |--------|-------|
-| Tracks Verified | 5 |
-| Passed | 4 ✅ |
-| Partial | 1 ⚠️ |
-| Failed | 0 ❌ |
+| Tracks Verified | 4 |
+| Passed | 3 ✅ |
+| Partial | 0 ⚠️ |
+| Failed | 1 ❌ |
 | Stubs (TODO) | 0 🔧 |
-| Average Score | 94.0/100 |
+| Average Score | 77.5/100 |
 
 ### Track Summary
 
 | # | Track | Status | Score | Time |
 |---|-------|--------|-------|------|
-| 7 | Temporal Resonance | ✅ | 100 | 0.3s |
-| 8 | Homeostatic Stability | ⚠️ | 70 | 0.4s |
+| 8 | Homeostatic Stability | ❌ | 10 | 3.6s |
 | 9 | Gradient Alignment | ✅ | 100 | 0.2s |
-| 13 | Convolutional EqProp | ✅ | 100 | 2.3s |
-| 14 | Transformer EqProp | ✅ | 100 | 5.3s |
+| 13 | Convolutional EqProp | ✅ | 100 | 161.7s |
+| 14 | Transformer EqProp | ✅ | 100 | 36.1s |
 
 
 **Seed**: 42 (deterministic)
@@ -36,50 +35,23 @@
 ---
 
 
-## Track 7: Temporal Resonance
-
-
-✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 0.3s
-
-
-**Claim**: Limit cycles emerge in recurrent dynamics, enabling infinite context windows.
-
-**Experiment**: Identify limit cycles using autocorrelation analysis of hidden states.
-
-| Metric | Value |
-|--------|-------|
-| Cycle Detected | ✅ Yes |
-| Cycle Length | 1 steps |
-| Stability (Corr) | 1.000 |
-| Resonance Score | 0.394 |
-
-**Key Finding**: Network settles into a stable oscillation (limit cycle) rather than a fixed point.
-This oscillation carries information over time (resonance score: 0.394).
-
-
-
-
 ## Track 8: Homeostatic Stability
 
 
-⚠️ **Status**: PARTIAL | **Score**: 70.0/100 | **Time**: 0.4s
+❌ **Status**: FAIL | **Score**: 10.0/100 | **Time**: 3.6s
 
 
-**Claim**: Network auto-regulates hyperparameters via homeostasis.
+**Claim**: Network auto-regulates via homeostasis parameters, recovering from instability.
 
-**Experiment**: Induce instability (L > 1) and observe autonomic recovery.
+**Experiment**: Robustness check (5 seeds). Induce L > 1, check if L returns to < 1.
 
-| Phase | Max Lipschitz (L) | Status |
-|-------|-------------------|--------|
-| Initial (Stressed) | 1.260 | ❌ Unstable |
-| Final (Recovered) | 1.260 | ✅ Stable |
+| Metric | Mean | StdDev |
+|--------|------|--------|
+| Initial L (Stressed) | 1.400 | 0.000 |
+| Final L (Recovered) | 1.400 | 0.000 |
+| **Recovery Score** | **10.0** | 20.0 |
 
-**Recovery Trajectory**: 1.26 -> 1.26 -> 1.26 -> 1.26
-
-**Mechanism**:
-- High velocity detected (chaos)
-- "Brake" signal sent to weights
-- Weights scale down until L < 1
+**Mechanism**: Proportional controller on weight scales based on velocity.
 
 
 
@@ -130,21 +102,18 @@ As β → 0, EqProp gradients converge to Backprop gradients.
 ## Track 13: Convolutional EqProp
 
 
-✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 2.3s
+✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 161.7s
 
 
-**Claim**: EqProp extends to convolutional architectures for image classification.
+**Claim**: ConvEqProp classifies non-trivial noisy shapes (Square, Plus, Frame).
 
-**Experiment**: Train ConvEqProp on synthetic structural patterns (Horizontal vs Vertical bars).
+**Experiment**: Train on 16x16 noisy images (Gaussian noise $\sigma=0.3$). N=3 seeds.
 
-| Metric | Value |
-|--------|-------|
-| Initial Loss | 0.708 |
-| Final Loss | 0.002 |
-| Accuracy | 100.0% |
+| Metric | Mean | StdDev |
+|--------|------|--------|
+| Accuracy | 100.0% | 0.0% |
 
-**Key Finding**: Convolutional equilibrium layers successfully learn spatial features (100% accuracy).
-Spectral normalization ensures stability of the convolutional dynamics.
+**Key Finding**: Convolutional equilibrium layers distinguish spatial structures robustly.
 
 
 
@@ -152,20 +121,18 @@ Spectral normalization ensures stability of the convolutional dynamics.
 ## Track 14: Transformer EqProp
 
 
-✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 5.3s
+✅ **Status**: PASS | **Score**: 99.9/100 | **Time**: 36.1s
 
 
-**Claim**: First equilibrium-based Transformer with attention dynamics.
+**Claim**: Equilibrium Transformer can solve sequence manipulation tasks (Reversal).
 
-**Experiment**: Train TransformerEqProp on Sequence Copy Task (Predict First Token).
+**Experiment**: Learn to reverse a sequence of length 8. N=3 seeds.
 
-| Metric | Value |
-|--------|-------|
-| Initial Loss | 3.959 |
-| Final Loss | 0.108 |
-| Accuracy | 100.0% |
+| Metric | Mean | StdDev |
+|--------|------|--------|
+| Accuracy | 99.9% | 0.1% |
 
-**Key Finding**: Attention mechanism successfully integrated into equilibrium iterations.
-Model learns to attend to relevant tokens (Accuracy: 100%).
+**Key Finding**: Iterative equilibrium attention successfully routes information 
+from pos $i$ to $L-i-1$.
 
 
