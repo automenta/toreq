@@ -24,6 +24,16 @@ from .dim_aware_eqprop import (
     DimensionScaledEqProp, EmbeddingEqProp, ProjectedEqProp, AdaptiveBetaEqProp
 )
 
+# TODO5 Grand Unification models
+from .lazy_eqprop import LazyEqProp
+from .recursive_block import RecursiveBlock, DeepRecursiveNetwork
+from .conv_eqprop import ConvEqProp
+from .homeostatic_eqprop import HomeostaticEqProp
+from .ternary_eqprop import TernaryEqProp
+from .feedback_alignment import FeedbackAlignmentEqProp
+from .neural_cube import NeuralCube
+from .temporal_resonance import TemporalResonanceEqProp
+
 __all__ = [
     # Core
     "LoopedMLP", "BackpropMLP", "ToroidalMLP", "GatedMLP", "ModernEqProp",
@@ -44,6 +54,16 @@ __all__ = [
     "EmbeddingEqProp",
     "ProjectedEqProp",
     "AdaptiveBetaEqProp",
+    # TODO5 Grand Unification
+    "LazyEqProp",
+    "RecursiveBlock",
+    "DeepRecursiveNetwork",
+    "ConvEqProp",
+    "HomeostaticEqProp",
+    "TernaryEqProp",
+    "FeedbackAlignmentEqProp",
+    "NeuralCube",
+    "TemporalResonanceEqProp",
 ]
 
 # Model registry for easy lookup
@@ -69,6 +89,16 @@ MODEL_REGISTRY = {
     'EmbeddingEqProp': EmbeddingEqProp,
     'ProjectedEqProp': ProjectedEqProp,
     'AdaptiveBetaEqProp': AdaptiveBetaEqProp,
+    # TODO5 Grand Unification
+    'LazyEqProp': LazyEqProp,
+    'RecursiveBlock': RecursiveBlock,
+    'DeepRecursiveNetwork': DeepRecursiveNetwork,
+    'ConvEqProp': ConvEqProp,
+    'HomeostaticEqProp': HomeostaticEqProp,
+    'TernaryEqProp': TernaryEqProp,
+    'FeedbackAlignmentEqProp': FeedbackAlignmentEqProp,
+    'NeuralCube': NeuralCube,
+    'TemporalResonanceEqProp': TemporalResonanceEqProp,
 }
 
 
@@ -82,3 +112,4 @@ def get_model(name, **kwargs):
 def list_models():
     """List all available models."""
     return list(MODEL_REGISTRY.keys())
+
