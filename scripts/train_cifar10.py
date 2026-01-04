@@ -102,14 +102,18 @@ class CIFAR10Trainer:
         
         return trainloader, testloader
     
-    def train_epoch(self, model, trainloader, optimizer, is_eqprop=False):
-        """Train for one epoch."""
+    def train_epoch(self, model, trainloader, optimizer, is_eqprop=False, epoch=0, total_epochs=1):
+        """Train for one epoch with progress feedback."""
+        import sys
         model.train()
         total_loss = 0
         correct = 0
         total = 0
         
-        for x, y in trainloader:
+        start_time = time.time()
+        num_batches = len(trainloader)
+        
+        for batch_idx, (x, y) in enumerate(trainloader):
             x, y = x.to(self.device), y.to(self.device)
             
             optimizer.zero_grad()
@@ -127,7 +131,23 @@ class CIFAR10Trainer:
             pred = out.argmax(dim=1)
             correct += (pred == y).sum().item()
             total += y.size(0)
+            
+            # Progress feedback every 10 batches
+            if (batch_idx + 1) % 10 == 0 or batch_idx == num_batches - 1:
+                elapsed = time.time() - start_time
+                batches_done = batch_idx + 1
+                batches_left = num_batches - batches_done
+                time_per_batch = elapsed / batches_done
+                eta = time_per_batch * batches_left
+                
+                curr_loss = total_loss / batches_done
+                curr_acc = 100. * correct / total
+                
+                print(f"\r  Epoch {epoch+1}/{total_epochs} [{batches_done}/{num_batches}] "
+                      f"Loss: {curr_loss:.3f}, Acc: {curr_acc:.1f}%, ETA: {eta:.0f}s",
+                      end='', flush=True)
         
+        print()  # New line after progress
         return total_loss / len(trainloader), 100. * correct / total
     
     def test(self, model, testloader, is_eqprop=False):
@@ -151,8 +171,12 @@ class CIFAR10Trainer:
         
         return 100. * correct / total
     
-    def run_experiment(self, model_type='conv_eqprop', seed=0, epochs=20):
-        """Run one experiment."""
+    def run_experiment(self, model_type='conv_eqprop', seed=0, epochs=20, mini=False):
+        """Run one experiment.
+        
+        Args:
+            mini: If True, use tiny subset for ultra-fast demo (< 1 min)
+        """
         torch.manual_seed(seed)
         np.random.seed(seed)
         
@@ -179,16 +203,29 @@ class CIFAR10Trainer:
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
         
         # Data
-        trainloader, testloader = self.get_cifar10_loaders()
+        if mini:
+            # Ultra-fast mini demo: 500 train, 200 test samples
+            trainloader, testloader = self.get_cifar10_loaders(batch_size=50)
+            # Limit to first few batches
+            print("  [Mini Mode: 500 train / 200 test samples for quick validation]")
+        else:
+            trainloader, testloader = self.get_cifar10_loaders()
         
         # Training
+        print(f"\n  Starting training... (Estimated: {epochs * 60 if not mini else epochs * 10}s total)")
         start_time = time.time()
         best_test_acc = 0
         convergence_epoch = epochs
         
+        train_loader_limited = list(trainloader)[:10] if mini else trainloader
+        test_loader_limited = list(testloader)[:4] if mini else testloader
+        
         for epoch in range(epochs):
-            train_loss, train_acc = self.train_epoch(model, trainloader, optimizer, is_eqprop)
-            test_acc = self.test(model, testloader, is_eqprop)
+            train_loss, train_acc = self.train_epoch(
+                model, train_loader_limited, optimizer, is_eqprop,
+                epoch=epoch, total_epochs=epochs
+            )
+            test_acc = self.test(model, test_loader_limited, is_eqprop)
             scheduler.step()
             
             # Track convergence (40% is reasonable for CIFAR-10)
