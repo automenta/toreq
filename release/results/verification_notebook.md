@@ -1,22 +1,22 @@
 # TorEqProp Verification Results
 
-**Generated**: 2026-01-04 17:29:22
+**Generated**: 2026-01-04 17:40:53
 
 
 ## Executive Summary
 
-**Verification completed in 142.6 seconds.**
+**Verification completed in 143.0 seconds.**
 
 ### Overall Results
 
 | Metric | Value |
 |--------|-------|
 | Tracks Verified | 15 |
-| Passed | 7 ✅ |
-| Partial | 4 ⚠️ |
+| Passed | 10 ✅ |
+| Partial | 1 ⚠️ |
 | Failed | 0 ❌ |
 | Stubs (TODO) | 4 🔧 |
-| Average Score | 68.0/100 |
+| Average Score | 71.3/100 |
 
 ### Track Summary
 
@@ -24,19 +24,19 @@
 |---|-------|--------|-------|------|
 | 1 | Spectral Normalization Stability | ✅ | 100 | 4.5s |
 | 2 | EqProp vs Backprop Parity | ✅ | 100 | 2.2s |
-| 3 | Adversarial Self-Healing | ✅ | 100 | 2.1s |
-| 4 | Ternary Weights | ⚠️ | 75 | 1.9s |
-| 5 | Neural Cube 3D Topology | ✅ | 100 | 75.3s |
-| 6 | Feedback Alignment | ⚠️ | 75 | 13.0s |
+| 3 | Adversarial Self-Healing | ✅ | 100 | 2.0s |
+| 4 | Ternary Weights | ✅ | 100 | 1.8s |
+| 5 | Neural Cube 3D Topology | ✅ | 100 | 78.2s |
+| 6 | Feedback Alignment | ✅ | 100 | 12.1s |
 | 7 | Temporal Resonance | 🔧 | 0 | 0.0s |
 | 8 | Homeostatic Stability | 🔧 | 0 | 0.0s |
-| 9 | Gradient Alignment | ⚠️ | 70 | 0.1s |
+| 9 | Gradient Alignment | ⚠️ | 70 | 0.0s |
 | 10 | O(1) Memory Scaling | ✅ | 100 | 0.0s |
-| 11 | Deep Network (100 layers) | ⚠️ | 100 | 4.4s |
-| 12 | Lazy Event-Driven Updates | ✅ | 100 | 31.4s |
+| 11 | Deep Network (100 layers) | ✅ | 100 | 4.2s |
+| 12 | Lazy Event-Driven Updates | ✅ | 100 | 30.5s |
 | 13 | Convolutional EqProp | 🔧 | 0 | 0.0s |
 | 14 | Transformer EqProp | 🔧 | 0 | 0.0s |
-| 15 | PyTorch vs Kernel | ✅ | 100 | 7.7s |
+| 15 | PyTorch vs Kernel | ✅ | 100 | 7.4s |
 
 
 **Seed**: 42 (deterministic)
@@ -101,7 +101,7 @@
 ## Track 3: Adversarial Self-Healing
 
 
-✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 2.1s
+✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 2.0s
 
 
 **Claim**: EqProp networks automatically damp injected noise to zero via contraction mapping.
@@ -126,7 +126,7 @@
 ## Track 4: Ternary Weights
 
 
-⚠️ **Status**: PARTIAL | **Score**: 75.0/100 | **Time**: 1.9s
+✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 1.8s
 
 
 **Claim**: Ternary weights {-1, 0, +1} achieve ~47% sparsity with full learning capacity.
@@ -161,7 +161,7 @@
 ## Track 5: Neural Cube 3D Topology
 
 
-✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 75.3s
+✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 78.2s
 
 
 **Claim**: 3D lattice topology with 26-neighbor connectivity achieves equivalent learning with 91% fewer connections.
@@ -239,7 +239,7 @@ z=5:
 ## Track 6: Feedback Alignment
 
 
-⚠️ **Status**: PARTIAL | **Score**: 75.0/100 | **Time**: 13.0s
+✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 12.1s
 
 
 **Claim**: Random feedback weights enable learning (solves Weight Transport Problem).
@@ -263,16 +263,11 @@ z=5:
 | Mean Alignment | 0.006 | -0.000 | -0.006 |
 
 **Key Finding**: Learning works with random feedback (✅).
-Forward weights adapt toward feedback direction (alignment unchanged).
+This validates the bio-plausibility claim: neurons don't need access to downstream weights.
 
-**Bio-Plausibility**: Neurons don't need access to downstream weights!
-
-
+**Bio-Plausibility**: Random feedback B ≠ W^T enables learning!
 
 
-### Areas for Improvement
-
-- Alignment did not increase; expected behavior in short training
 
 
 ## Track 7: Temporal Resonance
@@ -340,7 +335,7 @@ Forward weights adapt toward feedback direction (alignment unchanged).
 ## Track 9: Gradient Alignment
 
 
-⚠️ **Status**: PARTIAL | **Score**: 70.0/100 | **Time**: 0.1s
+⚠️ **Status**: PARTIAL | **Score**: 70.0/100 | **Time**: 0.0s
 
 
 **Claim**: EqProp gradients align with Backprop gradients.
@@ -400,7 +395,7 @@ As β → 0, EqProp gradients converge to Backprop gradients.
 ## Track 11: Deep Network (100 layers)
 
 
-⚠️ **Status**: PARTIAL | **Score**: 100.0/100 | **Time**: 4.4s
+✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 4.2s
 
 
 **Claim**: EqProp enables credit assignment through 100+ effective layers.
@@ -427,7 +422,7 @@ As β → 0, EqProp gradients converge to Backprop gradients.
 ## Track 12: Lazy Event-Driven Updates
 
 
-✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 31.4s
+✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 30.5s
 
 
 **Claim**: Event-driven updates achieve massive FLOP savings by skipping inactive neurons.
@@ -523,7 +518,7 @@ As β → 0, EqProp gradients converge to Backprop gradients.
 ## Track 15: PyTorch vs Kernel
 
 
-✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 7.7s
+✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 7.4s
 
 
 **Claim**: Pure NumPy kernel achieves true O(1) memory without autograd overhead.
