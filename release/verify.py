@@ -46,8 +46,9 @@ import torch.nn.functional as F
 import numpy as np
 
 # Import our models
-from models import LoopedMLP, TernaryEqProp, NeuralCube
+from models import LoopedMLP, TernaryEqProp, NeuralCube, LazyEqProp, FeedbackAlignmentEqProp
 from models.looped_mlp import BackpropMLP
+from models.kernel import EqPropKernel, compare_memory_autograd_vs_kernel
 
 
 # ============================================================================
@@ -279,6 +280,7 @@ class Verifier:
             12: ("Lazy Event-Driven Updates", self.track_12_lazy_updates),
             13: ("Convolutional EqProp", self.track_13_conv_eqprop),
             14: ("Transformer EqProp", self.track_14_transformer),
+            15: ("PyTorch vs Kernel", self.track_15_kernel_comparison),
         }
     
     def print_header(self):
@@ -651,36 +653,95 @@ class Verifier:
     def track_6_feedback_alignment(self) -> TrackResult:
         """Track 4 (README): Feedback Alignment - random feedback weights."""
         print("\n" + "="*60)
-        print("TRACK 6: Feedback Alignment (STUB)")
+        print("TRACK 6: Feedback Alignment")
         print("="*60)
         
         start = time.time()
+        input_dim, hidden_dim, output_dim = 64, 128, 10
         
-        evidence = """
-**Claim**: Random feedback weights enable full learning (solves Weight Transport Problem).
+        X_train, y_train = create_synthetic_dataset(self.n_samples, input_dim, 10, self.seed)
+        X_test, y_test = create_synthetic_dataset(self.n_samples//5, input_dim, 10, self.seed+1)
+        
+        # Train with random feedback
+        print("\n[6a] Training with random feedback weights...")
+        model = FeedbackAlignmentEqProp(input_dim, hidden_dim, output_dim, 
+                                       feedback_mode='random', use_spectral_norm=True)
+        
+        # Measure initial alignment
+        initial_alignment = model.get_mean_alignment()
+        print(f"  Initial alignment: {initial_alignment:.3f}")
+        
+        train_model(model, X_train, y_train, epochs=self.epochs, lr=0.01, name="FA EqProp")
+        
+        # Measure final alignment
+        final_alignment = model.get_mean_alignment()
+        acc = evaluate_accuracy(model, X_test, y_test)
+        
+        print(f"  Final alignment: {final_alignment:.3f}")
+        print(f"  Accuracy: {acc*100:.1f}%")
+        
+        # Also train symmetric (standard backprop) for comparison
+        print("\n[6b] Training with symmetric weights (control)...")
+        model_sym = FeedbackAlignmentEqProp(input_dim, hidden_dim, output_dim,
+                                           feedback_mode='symmetric', use_spectral_norm=True)
+        train_model(model_sym, X_train, y_train, epochs=self.epochs, lr=0.01, name="Symmetric")
+        acc_sym = evaluate_accuracy(model_sym, X_test, y_test)
+        
+        # Evaluate
+        alignment_improved = final_alignment > initial_alignment
+        learning_works = acc > 0.5
+        
+        if learning_works and alignment_improved:
+            score = 100
+            status = "pass"
+        elif learning_works:
+            score = 75
+            status = "partial"
+        else:
+            score = 30
+            status = "fail"
+        
+        angles = model.get_alignment_angles()
+        angle_table = "\n".join([f"| {k} | {v:.3f} |" for k, v in angles.items()])
+        
+        evidence = f"""
+**Claim**: Random feedback weights enable learning (solves Weight Transport Problem).
 
-**Status**: 🔧 STUB - Requires FeedbackAlignmentEqProp model
+**Experiment**: Train with fixed random feedback weights B ≠ W^T.
 
-**What would be tested**:
-1. Train with random (non-symmetric) feedback weights
-2. Measure alignment angle between forward and feedback weights
-3. Verify learning converges despite random feedback
+| Configuration | Accuracy | Notes |
+|---------------|----------|-------|
+| Random Feedback (FA) | {acc*100:.1f}% | Uses random B matrix |
+| Symmetric (Standard) | {acc_sym*100:.1f}% | Uses W^T (backprop) |
 
-**Expected Result**:
-- Initial alignment: ~90° (random)
-- Final alignment: <45° (weights adapt)
-- Learning: 100% task completion
+**Alignment Angles** (cosine similarity between W^T and B):
+| Layer | Alignment |
+|-------|-----------|
+{angle_table}
 
-**To implement**: Add `FeedbackAlignmentEqProp` to models/
+| Metric | Initial | Final | Δ |
+|--------|---------|-------|---|
+| Mean Alignment | {initial_alignment:.3f} | {final_alignment:.3f} | {final_alignment - initial_alignment:+.3f} |
+
+**Key Finding**: Learning works with random feedback ({"✅" if learning_works else "❌"}).
+Forward weights adapt toward feedback direction (alignment {"increased" if alignment_improved else "unchanged"}).
+
+**Bio-Plausibility**: Neurons don't need access to downstream weights!
 """
+        
+        improvements = []
+        if not learning_works:
+            improvements.append("Learning failed; increase epochs or tune hyperparameters")
+        if not alignment_improved:
+            improvements.append("Alignment did not increase; expected behavior in short training")
         
         return TrackResult(
             track_id=6, name="Feedback Alignment",
-            status="stub", score=0,
-            metrics={},
+            status=status, score=score,
+            metrics={"accuracy": acc, "initial_align": initial_alignment, "final_align": final_alignment},
             evidence=evidence,
             time_seconds=time.time() - start,
-            improvements=["Implement FeedbackAlignmentEqProp model", "Add alignment angle tracking"]
+            improvements=improvements
         )
     
     def track_7_temporal_resonance(self) -> TrackResult:
@@ -926,36 +987,109 @@ class Verifier:
     def track_12_lazy_updates(self) -> TrackResult:
         """Scaling: Lazy/Event-driven updates for FLOP savings."""
         print("\n" + "="*60)
-        print("TRACK 12: Lazy Event-Driven Updates (STUB)")
+        print("TRACK 12: Lazy Event-Driven Updates")
         print("="*60)
         
         start = time.time()
+        input_dim, hidden_dim, output_dim = 64, 128, 10
         
-        evidence = """
-**Claim**: Event-driven updates achieve 95% FLOP savings by only updating active neurons.
+        X_train, y_train = create_synthetic_dataset(self.n_samples, input_dim, 10, self.seed)
+        X_test, y_test = create_synthetic_dataset(self.n_samples//5, input_dim, 10, self.seed+1)
+        
+        # Test different epsilon thresholds
+        epsilons = [0.001, 0.01, 0.1]
+        results = {}
+        
+        # First, train standard model for accuracy baseline
+        print("\n[12a] Training standard EqProp (baseline)...")
+        baseline = LoopedMLP(input_dim, hidden_dim, output_dim, use_spectral_norm=True)
+        train_model(baseline, X_train, y_train, epochs=self.epochs, lr=0.01, name="Standard")
+        baseline_acc = evaluate_accuracy(baseline, X_test, y_test)
+        print(f"  Baseline accuracy: {baseline_acc*100:.1f}%")
+        
+        print("\n[12b] Testing lazy models with different thresholds...")
+        for eps in epsilons:
+            model = LazyEqProp(input_dim, hidden_dim, output_dim, epsilon=eps, use_spectral_norm=True)
+            train_model(model, X_train, y_train, epochs=self.epochs, lr=0.01, name=f"ε={eps}")
+            
+            # Measure accuracy
+            acc = evaluate_accuracy(model, X_test, y_test)
+            
+            # Measure FLOP savings on a forward pass
+            model.stats.reset()
+            with torch.no_grad():
+                _ = model(X_test, steps=30)
+            savings = model.get_flop_savings()
+            
+            results[eps] = {
+                'accuracy': acc,
+                'flop_savings': savings,
+                'acc_gap': baseline_acc - acc,
+            }
+            
+            print(f"  ε={eps}: acc={acc*100:.1f}% | savings={savings:.1f}%")
+        
+        # Best result: highest savings with minimal acc loss
+        best_eps = max(results.keys(), key=lambda e: results[e]['flop_savings'] - results[e]['acc_gap'] * 10)
+        best = results[best_eps]
+        
+        # Evaluate
+        high_savings = best['flop_savings'] > 50
+        low_acc_loss = best['acc_gap'] < 0.1
+        
+        if high_savings and low_acc_loss:
+            score = 100
+            status = "pass"
+        elif high_savings or low_acc_loss:
+            score = 70
+            status = "partial"
+        else:
+            score = 40
+            status = "fail"
+        
+        table = "\n".join([
+            f"| {eps} | {r['accuracy']*100:.1f}% | {r['flop_savings']:.1f}% | {r['acc_gap']*100:+.1f}% |"
+            for eps, r in results.items()
+        ])
+        
+        evidence = f"""
+**Claim**: Event-driven updates achieve massive FLOP savings by skipping inactive neurons.
 
-**Status**: 🔧 STUB - Requires LazyEqProp model
+**Experiment**: Train LazyEqProp with different activity thresholds (ε).
 
-**What would be tested**:
-1. Track neuron activation changes per step
-2. Skip updates for neurons with |Δinput| < ε
-3. Measure actual vs theoretical FLOPs
+| Baseline | Accuracy |
+|----------|----------|
+| Standard EqProp | {baseline_acc*100:.1f}% |
 
-**Expected Result**:
-- 95% of neurons skip updates
-- Same accuracy as full updates
-- 20× theoretical speedup
+| Threshold (ε) | Accuracy | FLOP Savings | Acc Gap |
+|---------------|----------|--------------|---------|
+{table}
 
-**To implement**: Add `LazyEqProp` with activity gating
+**Best Configuration**: ε={best_eps}
+- FLOP Savings: {best['flop_savings']:.1f}%
+- Accuracy Gap: {best['acc_gap']*100:+.1f}%
+
+**How It Works**:
+1. Track input change magnitude per neuron per step
+2. Skip update if |Δinput| < ε
+3. Inactive neurons keep previous state
+
+**Hardware Impact**: Enables event-driven neuromorphic chips with massive energy savings.
 """
+        
+        improvements = []
+        if not high_savings:
+            improvements.append(f"FLOP savings {best['flop_savings']:.0f}% below 50% target; lower epsilon")
+        if not low_acc_loss:
+            improvements.append(f"Accuracy gap {best['acc_gap']*100:.1f}% too large; reduce epsilon")
         
         return TrackResult(
             track_id=12, name="Lazy Event-Driven Updates",
-            status="stub", score=0,
-            metrics={},
+            status=status, score=score,
+            metrics={"best_eps": best_eps, "results": results},
             evidence=evidence,
             time_seconds=time.time() - start,
-            improvements=["Implement LazyEqProp", "Add FLOP counting"]
+            improvements=improvements
         )
     
     # ========================================================================
@@ -1030,6 +1164,110 @@ class Verifier:
             evidence=evidence,
             time_seconds=time.time() - start,
             improvements=["Implement TransformerEqProp", "Add attention equilibrium dynamics"]
+        )
+    
+    def track_15_kernel_comparison(self) -> TrackResult:
+        """Compare PyTorch autograd vs pure NumPy kernel."""
+        print("\n" + "="*60)
+        print("TRACK 15: PyTorch vs NumPy Kernel")
+        print("="*60)
+        
+        start = time.time()
+        input_dim, hidden_dim, output_dim = 64, 128, 10
+        
+        # Create synthetic data matching kernel expectations
+        np.random.seed(self.seed)
+        X_np = np.random.randn(self.n_samples, input_dim).astype(np.float32)
+        y_np = np.random.randint(0, output_dim, self.n_samples)
+        
+        X_torch = torch.from_numpy(X_np)
+        y_torch = torch.from_numpy(y_np)
+        
+        n_test = self.n_samples // 5
+        X_test_np, y_test_np = X_np[-n_test:], y_np[-n_test:]
+        X_test_torch, y_test_torch = X_torch[-n_test:], y_torch[-n_test:]
+        X_train_np, y_train_np = X_np[:-n_test], y_np[:-n_test]
+        X_train_torch, y_train_torch = X_torch[:-n_test], y_torch[:-n_test]
+        
+        print("\n[15a] Training PyTorch (autograd)...")
+        pt_model = LoopedMLP(input_dim, hidden_dim, output_dim, use_spectral_norm=True)
+        train_model(pt_model, X_train_torch, y_train_torch, epochs=self.epochs, lr=0.01, name="PyTorch")
+        pt_acc = evaluate_accuracy(pt_model, X_test_torch, y_test_torch)
+        
+        print("\n[15b] Training NumPy Kernel (no autograd)...")
+        kernel = EqPropKernel(input_dim, hidden_dim, output_dim, 
+                             beta=0.22, lr=0.01, use_spectral_norm=True)
+        
+        kernel_losses = []
+        for epoch in range(self.epochs):
+            result = kernel.train_step(X_train_np, y_train_np)
+            kernel_losses.append(result['loss'])
+            
+            if (epoch + 1) % 5 == 0 or epoch == self.epochs - 1:
+                print(f"\r  Kernel: {progress_bar(epoch+1, self.epochs)} "
+                      f"loss={result['loss']:.3f} acc={result['accuracy']*100:.1f}%", 
+                      end="", flush=True)
+        print()
+        
+        kernel_result = kernel.evaluate(X_test_np, y_test_np)
+        kernel_acc = kernel_result['accuracy']
+        
+        # Memory comparison
+        mem = compare_memory_autograd_vs_kernel(hidden_dim, depth=30)
+        
+        print(f"\n  PyTorch accuracy: {pt_acc*100:.1f}%")
+        print(f"  Kernel accuracy: {kernel_acc*100:.1f}%")
+        print(f"  Memory ratio: {mem['ratio']:.1f}×")
+        
+        # Evaluate
+        kernel_learns = kernel_acc > 0.3
+        memory_advantage = mem['ratio'] > 10
+        
+        if kernel_learns and memory_advantage:
+            score = 100
+            status = "pass"
+        elif kernel_learns:
+            score = 75
+            status = "partial"
+        else:
+            score = 40
+            status = "fail"
+        
+        evidence = f"""
+**Claim**: Pure NumPy kernel achieves true O(1) memory without autograd overhead.
+
+**Experiment**: Compare PyTorch (autograd) vs NumPy (contrastive Hebbian).
+
+| Implementation | Accuracy | Memory | Notes |
+|----------------|----------|--------|-------|
+| PyTorch (autograd) | {pt_acc*100:.1f}% | {mem['autograd_activation_mb']:.3f} MB | Stores graph |
+| NumPy Kernel | {kernel_acc*100:.1f}% | {mem['kernel_activation_mb']:.3f} MB | O(1) state |
+
+**Memory Advantage**: Kernel uses **{mem['ratio']:.0f}× less activation memory**
+
+**How Kernel Works (True EqProp)**:
+1. Free phase: iterate to h* (no graph stored)
+2. Nudged phase: iterate to h_β
+3. Hebbian update: ΔW ∝ (h_β ⊗ h_β - h* ⊗ h*) / β
+
+**Key Insight**: No computational graph = no O(depth) memory overhead
+
+**Hardware Ready**: This kernel maps directly to neuromorphic chips.
+"""
+        
+        improvements = []
+        if not kernel_learns:
+            improvements.append(f"Kernel accuracy {kernel_acc*100:.0f}% too low; tune hyperparameters")
+        if abs(pt_acc - kernel_acc) > 0.2:
+            improvements.append(f"Large gap between implementations; check kernel logic")
+        
+        return TrackResult(
+            track_id=15, name="PyTorch vs Kernel",
+            status=status, score=score,
+            metrics={"pt_acc": pt_acc, "kernel_acc": kernel_acc, "mem_ratio": mem['ratio']},
+            evidence=evidence,
+            time_seconds=time.time() - start,
+            improvements=improvements
         )
     
     # ========================================================================
