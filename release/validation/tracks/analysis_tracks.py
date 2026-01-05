@@ -6,7 +6,7 @@ import numpy as np
 import sys
 from pathlib import Path
 from ..notebook import TrackResult
-from ..analysis import estimate_lyapunov
+from ..analysis import estimate_lyapunov, compute_energy, EnergyMonitor
 
 # Enhance import path
 root_path = Path(__file__).parent.parent.parent
@@ -18,14 +18,37 @@ from models import LoopedMLP
 def track_19_criticality(verifier) -> TrackResult:
     """Track 19: Criticality / Edge of Chaos Analysis."""
     print("\n" + "="*60)
-    print("TRACK 19: Criticality (Edge of Chaos)")
+    print("TRACK 19: Criticality & Energy Landscape")
     print("="*60)
     
     start = time.time()
     input_dim = 64
     hidden_dim = 128
     
-    print(f"\n[19a] Measuring Lyapunov Exponents near equilibrium...")
+    # --- Part A: Energy Landscape ---
+    print(f"\n[19a] Visualizing Energy Relaxation (Equilibrium Approach)...")
+    # We want to see E(t) decrease monotonically
+    model = LoopedMLP(input_dim, hidden_dim, 10, use_spectral_norm=True)
+    x = torch.randn(1, input_dim)
+    
+    # Manually step and record energy
+    monitor = EnergyMonitor()
+    h = torch.zeros(1, hidden_dim)
+    for t in range(20):
+        energy = compute_energy(model, x, h)
+        monitor.record(energy)
+        # Step
+        h = torch.tanh(model.W_in(x) + model.W_rec(h))
+        
+    print("  Energy Landscape (Relaxation):")
+    print(monitor.get_plot_ascii(height=5))
+    
+    E_initial = monitor.energies[0]
+    E_final = monitor.energies[-1]
+    print(f"  Energy: {E_initial:.4f} -> {E_final:.4f} (stable? {E_final < E_initial})")
+
+    # --- Part B: Criticality ---
+    print(f"\n[19b] Measuring Lyapunov Exponents near equilibrium...")
     
     # Compare "Standard" (L < 1) vs "Critical" (L approx 1) vs "Chaotic" (L > 1)
     # We control this by scaling W_rec
