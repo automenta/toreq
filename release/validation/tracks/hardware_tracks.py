@@ -155,25 +155,49 @@ def track_18_thermodynamic_dna(verifier) -> TrackResult:
     model = LoopedMLP(input_dim, hidden_dim, output_dim, use_spectral_norm=True)
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
     
-    print(f"\n[18a] Measuring energy vs error reduction...")
+    # Thermodynamic "Temperature" - controls stochastic noise
+    T_start = 1.0
+    T_end = 0.1
+    
+    print(f"\n[18a] Measuring energy vs error reduction (Simulated Annealing)...")
     
     energy_history = []
     loss_history = []
     
     for epoch in range(verifier.epochs):
+        # Anneal temperature
+        T = T_start - (T_start - T_end) * (epoch / verifier.epochs)
+        
         model.train()
         optimizer.zero_grad()
         
-        # Track "Energy" = sum of squared activations (metabolic cost) + sum of squared updates (kinetic cost)
-        total_energy = 0.0
+        # Inject thermal noise during forward pass logic manually since LoopedMLP is stateless
+        # We wrap the forward pass or just use the model's noise injection capability if it had one
+        # But easier here: just add noise to input effectively or use a hook?
+        # Simpler: Subclass for this track or just modify `forward` behavior via a monkey patch or just accept that 
+        # "Temperature" in this context creates a noisy trajectory.
         
-        # Forward
-        out, trajectory = model(X, return_trajectory=True)
-        h_final = trajectory[-1]
-        metabolic_cost = h_final.pow(2).mean().item()
+        # Let's use the inject_noise_and_relax mechanism or just simple forward with noise
+        # Since LoopedMLP doesn't support noise arg in forward, we'll patch it momentarily or use a custom step
+        
+        # Standard forward but we add noise to the recurrence
+        # We can implement a simple custom loop here for the "thermal" forward pass
+        h = torch.zeros(model.h_state.shape if hasattr(model, 'h_state') else (X.shape[0], model.hidden_dim), device=X.device)
+        x_proj = model.W_in(X)
+        
+        # Noisy relaxation
+        for _ in range(model.max_steps):
+            # Thermal kick
+            noise = torch.randn_like(h) * T * 0.05
+            h = torch.tanh(x_proj + model.W_rec(h) + noise)
+            
+        out = model.W_out(h)
         
         loss = F.cross_entropy(out, y)
         loss.backward()
+        
+        # Track "Energy" = sum of squared activations (metabolic cost)
+        metabolic_cost = h.pow(2).mean().item()
         
         # Update cost
         update_cost = 0.0

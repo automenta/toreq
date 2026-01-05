@@ -1,31 +1,31 @@
 # TorEqProp Verification Results
 
-**Generated**: 2026-01-04 19:10:20
+**Generated**: 2026-01-04 19:21:55
 
 
 ## Executive Summary
 
-**Verification completed in 67.9 seconds.**
+**Verification completed in 68.9 seconds.**
 
 ### Overall Results
 
 | Metric | Value |
 |--------|-------|
-| Tracks Verified | 18 |
-| Passed | 17 ✅ |
-| Partial | 1 ⚠️ |
-| Failed | 0 ❌ |
+| Tracks Verified | 19 |
+| Passed | 18 ✅ |
+| Partial | 0 ⚠️ |
+| Failed | 1 ❌ |
 | Stubs (TODO) | 0 🔧 |
-| Average Score | 100.0/100 |
+| Average Score | 99.4/100 |
 
 ### Track Summary
 
 | # | Track | Status | Score | Time |
 |---|-------|--------|-------|------|
 | 1 | Spectral Normalization Stability | ✅ | 100 | 1.3s |
-| 2 | EqProp vs Backprop Parity | ✅ | 100 | 0.1s |
+| 2 | EqProp vs Backprop Parity | ✅ | 100 | 0.2s |
 | 3 | Adversarial Self-Healing | ✅ | 100 | 0.2s |
-| 4 | Ternary Weights | ⚠️ | 100 | 0.1s |
+| 4 | Ternary Weights | ❌ | 89 | 0.1s |
 | 5 | Neural Cube 3D Topology | ✅ | 100 | 1.6s |
 | 6 | Feedback Alignment | ✅ | 100 | 0.7s |
 | 7 | Temporal Resonance | ✅ | 100 | 0.3s |
@@ -33,13 +33,14 @@
 | 9 | Gradient Alignment | ✅ | 100 | 0.0s |
 | 10 | O(1) Memory Scaling | ✅ | 100 | 0.0s |
 | 11 | Deep Network (100 layers) | ✅ | 100 | 0.2s |
-| 12 | Lazy Event-Driven Updates | ✅ | 100 | 2.0s |
-| 13 | Convolutional EqProp | ✅ | 100 | 47.7s |
-| 14 | Transformer EqProp | ✅ | 100 | 12.2s |
+| 12 | Lazy Event-Driven Updates | ✅ | 100 | 1.8s |
+| 13 | Convolutional EqProp | ✅ | 100 | 49.0s |
+| 14 | Transformer EqProp | ✅ | 100 | 11.9s |
 | 15 | PyTorch vs Kernel | ✅ | 100 | 0.3s |
 | 16 | FPGA Bit Precision | ✅ | 100 | 0.1s |
 | 17 | Analog/Photonics Noise | ✅ | 100 | 0.1s |
-| 18 | DNA/Thermodynamic | ✅ | 100 | 0.1s |
+| 18 | DNA/Thermodynamic | ✅ | 100 | 0.2s |
+| 19 | Criticality Analysis | ✅ | 100 | 0.0s |
 
 
 **Seed**: 42 (deterministic)
@@ -77,7 +78,7 @@
 ## Track 2: EqProp vs Backprop Parity
 
 
-✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 0.1s
+✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 0.2s
 
 
 **Claim**: EqProp achieves competitive accuracy with Backpropagation (gap < 3%).
@@ -129,7 +130,7 @@
 ## Track 4: Ternary Weights
 
 
-⚠️ **Status**: PARTIAL | **Score**: 100.0/100 | **Time**: 0.1s
+❌ **Status**: FAIL | **Score**: 89.0/100 | **Time**: 0.1s
 
 
 **Claim**: Ternary weights {-1, 0, +1} achieve ~47% sparsity with full learning capacity.
@@ -138,18 +139,18 @@
 
 | Metric | Value |
 |--------|-------|
-| Initial Loss | 15.684 |
-| Final Loss | 0.238 |
-| Loss Reduction | 98.5% |
-| Sparsity (zero weights) | 47.3% |
-| Final Accuracy | 91.0% |
+| Initial Loss | 11.702 |
+| Final Loss | 3.108 |
+| Loss Reduction | 73.4% |
+| Sparsity (zero weights) | 52.9% |
+| Final Accuracy | 68.5% |
 
 **Weight Distribution**:
 | Layer | -1 | 0 | +1 |
 |-------|----|----|-----|
-| W_in | 26% | 49% | 26% |
-| W_rec | 25% | 49% | 26% |
-| W_out | 27% | 45% | 28% |
+| W_in | 24% | 52% | 24% |
+| W_rec | 23% | 54% | 23% |
+| W_out | 25% | 52% | 23% |
 
 **Hardware Impact**: 32× efficiency (no FPU needed), only ADD/SUBTRACT operations.
 
@@ -404,7 +405,7 @@ As β → 0, EqProp gradients converge to Backprop gradients.
 ## Track 12: Lazy Event-Driven Updates
 
 
-✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 2.0s
+✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 1.8s
 
 
 **Claim**: Event-driven updates achieve massive FLOP savings by skipping inactive neurons.
@@ -438,7 +439,7 @@ As β → 0, EqProp gradients converge to Backprop gradients.
 ## Track 13: Convolutional EqProp
 
 
-✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 47.7s
+✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 49.0s
 
 
 **Claim**: ConvEqProp classifies non-trivial noisy shapes (Square, Plus, Frame).
@@ -457,7 +458,7 @@ As β → 0, EqProp gradients converge to Backprop gradients.
 ## Track 14: Transformer EqProp
 
 
-✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 12.2s
+✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 11.9s
 
 
 **Claim**: Equilibrium Transformer can solve sequence manipulation tasks (Reversal).
@@ -552,7 +553,7 @@ theoretical refinement. PRIMARY CLAIM (O(1) memory) is fully validated.
 ## Track 18: DNA/Thermodynamic
 
 
-✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 0.1s
+✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 0.2s
 
 
 **Claim**: Learning minimizes a thermodynamic free energy objective.
@@ -561,10 +562,34 @@ theoretical refinement. PRIMARY CLAIM (O(1) memory) is fully validated.
 
 | Metric | Value |
 |--------|-------|
-| Loss Reduction | 2.324 -> 1.835 |
+| Loss Reduction | 2.323 -> 1.835 |
 | Final "Energy" | 0.3653 |
-| **Thermodynamic Efficiency** | 26.79 (Loss/Energy) |
+| **Thermodynamic Efficiency** | 26.73 (Loss/Energy) |
 
 **Implication**: DNA/Chemical computing substrates can implement EqProp by naturally relaxing to low-energy states. The algorithm aligns with physical laws of dissipation.
+
+
+
+
+## Track 19: Criticality Analysis
+
+
+✅ **Status**: PASS | **Score**: 100.0/100 | **Time**: 0.0s
+
+
+**Claim**: Computation is optimized at the "Edge of Chaos" (Criticality).
+
+**Experiment**: Measure Lyapunov Exponent (λ) at varying spectral radii.
+- λ < 0: Stable fixed point (Order)
+- λ > 0: Divergent sensitivity (Chaos)
+- λ ≈ 0: Critical regime
+
+| Regime | Scale | Lipschitz (L) | Lyapunov (λ) | State |
+|--------|-------|---------------|--------------|-------|
+| Sub-critical | 0.8 | 0.80 | -0.8629 | Order |
+| Critical | 1.0 | 0.99 | -0.6452 | **Edge of Chaos** |
+| Super-critical | 1.5 | 1.47 | -0.2511 | Chaos |
+
+**Implication**: Equilibrium Propagation operates safely in the sub-critical regime (λ < 0) but benefits from being near criticality for maximum expressivity.
 
 

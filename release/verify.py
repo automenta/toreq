@@ -13,6 +13,7 @@ RESEARCH TRACKS COVERED:
   16. Hardware: FPGA Bit Precision (INT8)
   17. Hardware: Analog/Photonics Noise
   18. Hardware: DNA/Thermodynamic Constraints
+  19. Analysis: Criticality (Edge of Chaos)
   5. Track 3: Neural Cube 3D Topology (Score: 86.5)
   6. Track 4: Feedback Alignment (Score: 86.5)
   7. Track 5: Temporal Resonance (Score: 61.2)
