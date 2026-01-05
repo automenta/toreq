@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Callable
 
 from .notebook import VerificationNotebook, TrackResult
-from .tracks import core_tracks, advanced_tracks, scaling_tracks, special_tracks
+from .tracks import core_tracks, advanced_tracks, scaling_tracks, special_tracks, hardware_tracks
 
 class Verifier:
     """Complete verification suite for all research tracks."""
@@ -52,6 +52,9 @@ class Verifier:
             13: ("Convolutional EqProp", special_tracks.track_13_conv_eqprop),
             14: ("Transformer EqProp", special_tracks.track_14_transformer),
             15: ("PyTorch vs Kernel", special_tracks.track_15_kernel_comparison),
+            16: ("FPGA Bit Precision", hardware_tracks.track_16_fpga_quantization),
+            17: ("Analog/Photonics Noise", hardware_tracks.track_17_analog_photonics),
+            18: ("DNA/Thermodynamic", hardware_tracks.track_18_thermodynamic_dna),
         }
     
     def print_header(self):

@@ -224,7 +224,7 @@ def track_15_kernel_comparison(verifier) -> TrackResult:
     pt_acc = evaluate_accuracy(pt_model, X_test_torch, y_test_torch)
     
     print("\n[15b] Training NumPy Kernel (BPTT)...")
-    kernel = EqPropKernel(input_dim, hidden_dim, output_dim, lr=0.01, max_steps=30)
+    kernel = EqPropKernel(input_dim, hidden_dim, output_dim, lr=0.1, max_steps=30)
     
     kernel_losses = []
     for epoch in range(verifier.epochs):

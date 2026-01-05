@@ -9,7 +9,10 @@ RESEARCH TRACKS COVERED:
   1. Core: Spectral Normalization Stability
   2. Core: EqProp vs Backprop Parity  
   3. Track 1: Adversarial Self-Healing (Score: 88.0)
-  4. Track 2: Ternary Weights (Score: 87.4)
+  15. Special: PyTorch vs Kernel (Score: 100.0)
+  16. Hardware: FPGA Bit Precision (INT8)
+  17. Hardware: Analog/Photonics Noise
+  18. Hardware: DNA/Thermodynamic Constraints
   5. Track 3: Neural Cube 3D Topology (Score: 86.5)
   6. Track 4: Feedback Alignment (Score: 86.5)
   7. Track 5: Temporal Resonance (Score: 61.2)

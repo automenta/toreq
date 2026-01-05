@@ -179,8 +179,14 @@ def track_11_deep_network(verifier) -> TrackResult:
         loss.backward()
     
     # Check if gradients reached all layers (via input gradient)
-    grad_exists = model.W_in.weight.grad is not None
-    grad_mag = model.W_in.weight.grad.abs().mean().item() if grad_exists else 0
+    # Spectral norm makes .weight a computed tensor; we need the original parameter
+    if hasattr(model.W_in, 'parametrizations'):
+        w_param = model.W_in.parametrizations.weight.original
+    else:
+        w_param = model.W_in.weight
+        
+    grad_exists = w_param.grad is not None
+    grad_mag = w_param.grad.abs().mean().item() if grad_exists else 0
     
     # Key claim: credit assignment through deep networks - accuracy is primary metric
     score = min(100, acc * 100) if acc > 0.5 else 30
