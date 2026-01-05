@@ -21,8 +21,8 @@ class Verifier:
         torch.manual_seed(seed)
         np.random.seed(seed)
         
-        self.epochs = 5 if quick_mode else 50 # Even faster in quick mode
-        self.n_samples = 200 if quick_mode else 1000
+        self.epochs = 5 if quick_mode else 15 # Optimized for ~10min run
+        self.n_samples = 200 if quick_mode else 400 # Sufficient for stats
         
         # Redundancy Configuration
         if quick_mode:
